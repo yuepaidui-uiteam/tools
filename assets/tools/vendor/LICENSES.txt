@@ -1,0 +1,30 @@
+Bundled browser libraries
+=========================
+
+These files are hosted locally so the Utilune free image tools do not load code
+from a CDN at runtime.
+
+pica
+- Version: 9.0.1
+- File: pica.min.js
+- Project: https://github.com/nodeca/pica
+- License: MIT
+
+UPNG.js
+- Version: 2.1.0
+- File: upng.min.js
+- Project: https://github.com/photopea/UPNG.js
+- License: MIT
+- Runtime dependency: pako.min.js
+
+pako
+- Version: 2.1.0
+- File: pako.min.js
+- Project: https://github.com/nodeca/pako
+- License: MIT
+
+JSZip
+- Version: 3.10.1
+- File: jszip.min.js
+- Project: https://github.com/Stuk/jszip
+- License: MIT or GPL-3.0-or-later
