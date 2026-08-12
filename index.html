@@ -6,17 +6,22 @@
   <meta name="description" content="免费的本地图片工具，完全在浏览器中运行。">
   <title>免费图片工具</title>
   <link rel="stylesheet" href="assets/tools/tools.css">
+  <style>
+    .guide-section { padding:22px 0 60px; }.guide-grid { display:grid; gap:18px; grid-template-columns:repeat(2,minmax(0,1fr)); }.guide-card { background:var(--panel); border:1px solid var(--line); border-radius:8px; box-shadow:var(--shadow); display:flex; flex-direction:column; min-height:190px; padding:20px; position:relative; }.guide-card .tool-icon { background:color-mix(in srgb,var(--brand) 14%,transparent); border-radius:8px; flex:none; font-size:25px; height:48px; width:48px; }.guide-card h2 { font-size:21px; margin:14px 0 8px; padding-right:120px; }.guide-card p { color:var(--muted); margin:0; padding-right:120px; }.guide-card .button { position:absolute; right:20px; top:20px; }.guide-note { background:color-mix(in srgb,var(--brand) 10%,var(--panel)); border:1px solid var(--line); border-radius:8px; grid-column:1 / -1; margin-top:0; padding:18px 20px; }.guide-note h2 { font-size:19px; margin:0 0 8px; }.guide-note p { color:var(--muted); margin:0; }.guide-note span { color:inherit; }
+    @media (max-width:640px) { .guide-grid { grid-template-columns:1fr; }.guide-card { min-height:0; padding:21px; }.guide-note { grid-column:auto; padding:21px; } }
+  </style>
 </head>
 <body>
   <main>
-    <header class="hero"><div class="wrap"><div class="eyebrow" data-i18n="tools_eyebrow">免费图片工具</div><h1 data-i18n="tools_title">小小图片任务，本地就能完成。</h1><p class="lead" data-i18n="tools_lead">为日常图片处理打造的快速浏览器工具。文件始终留在这台设备上。</p></div></header>
-    <section class="tools-section"><div class="wrap tools-grid">
-      <article class="tool-card"><div class="tool-icon" aria-hidden="true">%</div><h2 data-i18n="compress_title">图片批量压缩与格式转换</h2><p data-i18n="compress_description">压缩 JPG、PNG 和 WebP 文件，同时保留画质控制。</p><a class="button" href="image-compress.html" data-i18n="compress_action">压缩图片</a></article>
-      <article class="tool-card"><div class="tool-icon" aria-hidden="true">#</div><h2 data-i18n="nine_patch_title">.9 图制作工具</h2><p data-i18n="nine_patch_description">通过可视化编辑器创建可拉伸的 Android nine-patch PNG。</p><a class="button" href="nine-patch.html" data-i18n="nine_patch_action">制作 .9 图</a></article>
-      <article class="tool-card"><div class="tool-icon" aria-hidden="true">✦</div><h2>特效图集预览工具</h2><p>预览精灵表动画，并在不同尺寸之间进行双向转换。</p><a class="button" href="特效图集预览工具-双向转换V3.html">打开图集预览</a></article>
-      <article class="tool-card"><div class="tool-icon" aria-hidden="true">▦</div><h2>Android 图标规范全景预览</h2><p>快速查看 Android 图标在不同规范和遮罩下的显示效果。</p><a class="button" href="Android 图标规范全景预览.html">打开图标预览</a></article>
-      <article class="tool-card"><div class="tool-icon" aria-hidden="true">↘</div><h2>视频比特率压缩工具</h2><p>在浏览器本地压缩 MP4，保留特效资源中的 JSON 信息，不需要安装 FFmpeg。</p><a class="button" href="video-bitrate-compressor.html">压缩视频</a></article>
-      <article class="tool-card"><div class="tool-icon" aria-hidden="true">✦</div><h2>图片去背工具</h2><p>拾取纯色背景，或使用去黑抠图模式处理外发光、烟雾和光效素材。</p><a class="button" href="color-unmult.html">打开图片去背</a></article>
+    <header class="hero"><div class="wrap"><div class="eyebrow">轻量 · 本地 · 即开即用</div><h1>图片工具合集</h1><p class="lead">为日常工作准备的一组实用小工具，打开浏览器就能快速完成常见的图片、特效和视频处理。</p></div></header>
+    <section class="guide-section"><div class="wrap guide-grid">
+      <article class="guide-card"><div class="tool-icon" aria-hidden="true">🖼️</div><h2><a href="image-compress.html" data-i18n="compress_title">图片批量压缩与格式转换</a></h2><p>📉 快速压缩图片并转换格式</p><a class="button" href="image-compress.html" data-i18n="compress_action">压缩图片</a></article>
+      <article class="guide-card"><div class="tool-icon" aria-hidden="true">🧩</div><h2><a href="nine-patch.html" data-i18n="nine_patch_title">.9 图制作工具</a></h2><p>🛠️ 可视化制作并导出 Android `.9.png` 图片</p><a class="button" href="nine-patch.html" data-i18n="nine_patch_action">制作 .9 图</a></article>
+      <article class="guide-card"><div class="tool-icon" aria-hidden="true">✨</div><h2><a href="特效图集预览工具-双向转换V3.html">特效图集预览工具</a></h2><p>🎞️ 快速预览特效图集和动画效果</p><a class="button" href="特效图集预览工具-双向转换V3.html">打开图集预览</a></article>
+      <article class="guide-card"><div class="tool-icon" aria-hidden="true">📱</div><h2><a href="Android 图标规范全景预览.html">Android 图标规范全景预览</a></h2><p>✅ 快速检查 Android 图标在不同规范下的显示效果</p><a class="button" href="Android 图标规范全景预览.html">打开图标预览</a></article>
+      <article class="guide-card"><div class="tool-icon" aria-hidden="true">🎬</div><h2><a href="video-bitrate-compressor.html">视频比特率压缩工具</a></h2><p>📹 快速压缩 MP4 视频并调整文件体积</p><a class="button" href="video-bitrate-compressor.html">压缩视频</a></article>
+      <article class="guide-card"><div class="tool-icon" aria-hidden="true">🪄</div><h2><a href="color-unmult.html">图片去背工具</a></h2><p>✨ 支持常规抠图和黑底外发光素材去除</p><a class="button" href="color-unmult.html">打开图片去背</a></article>
+      <section class="guide-note"><h2>🌟 工具合集特点</h2><p><span>🚀 浏览器打开即可使用</span>　·　🖱️ 操作简单，处理速度快　·　🔒 文件在本地浏览器中处理，不上传服务器　·　🧰 持续增加更多实用工具</p></section>
     </div></section>
   </main>
   <script type="module">import { initToolShell } from './assets/tools/common.mjs'; initToolShell();</script>
