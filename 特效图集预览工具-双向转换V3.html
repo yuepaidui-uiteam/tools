@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>精灵表动画预览器（自适应尺寸）</title>
+    <link rel="stylesheet" href="assets/tools/tools.css">
+    <style>
+        * { box-sizing: border-box; margin: 0; }
+        body {
+            background: #1a1a2e;
+            color: #eee;
+            font-family: 'Segoe UI', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            background: #16213e;
+            border-radius: 24px;
+            padding: 30px;
+            max-width: 900px;
+            width: 100%;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+        }
+        h1 { text-align: center; margin-bottom: 20px; font-weight: 300; letter-spacing: 2px; }
+        .drop-zone {
+            border: 3px dashed #4a6fa5;
+            border-radius: 20px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: background 0.3s;
+            background: #1a2744;
+        }
+        .drop-zone.dragover { background: #2a3f66; border-color: #7aa8f0; }
+        .drop-zone img { max-width: 100%; max-height: 200px; border-radius: 12px; }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin: 20px 0;
+            align-items: center;
+        }
+        .controls label { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+        .controls input[type="number"] {
+            width: 70px;
+            padding: 6px 8px;
+            border-radius: 8px;
+            border: none;
+            background: #0f1a2f;
+            color: #eee;
+            font-size: 14px;
+        }
+        .controls input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: #7aa8f0;
+        }
+        .controls select {
+            padding: 6px 8px;
+            border-radius: 8px;
+            border: none;
+            background: #0f1a2f;
+            color: #eee;
+            font-size: 14px;
+        }
+        .controls button {
+            background: #4a6fa5;
+            border: none;
+            color: #fff;
+            padding: 8px 20px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .controls button:hover { background: #5f8ac9; }
+        .controls button:disabled {
+            background: #2b3d5e;
+            cursor: not-allowed;
+            opacity: 0.75;
+        }
+        .canvas-wrapper {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #111;
+            border-radius: 12px;
+            min-height: 60px;
+            padding: 10px;
+        }
+        canvas {
+            display: block;
+            image-rendering: pixelated;
+            background: #111;
+            border-radius: 4px;
+        }
+        .info { margin-top: 15px; font-size: 14px; color: #aab; text-align: center; }
+        .info span { color: #7aa8f0; font-weight: bold; }
+        .gif-tools {
+            display: none;
+            margin: 18px 0 0;
+            padding-top: 16px;
+            border-top: 1px solid rgba(122, 168, 240, 0.22);
+        }
+        .gif-tools.active { display: block; }
+        .gif-tools-title {
+            margin-bottom: 12px;
+            color: #dce8ff;
+            font-size: 15px;
+            font-weight: 700;
+        }
+        .frame-grid {
+            display: none;
+            grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
+            gap: 10px;
+            width: 100%;
+            max-height: 460px;
+            overflow: auto;
+            padding: 10px;
+            background: #111;
+            border-radius: 12px;
+        }
+        .frame-grid.active { display: grid; }
+        .frame-item {
+            position: relative;
+            display: grid;
+            gap: 6px;
+            padding: 8px;
+            border: 2px solid rgba(122, 168, 240, 0.16);
+            border-radius: 8px;
+            background: #0f1a2f;
+            color: #aab;
+            cursor: pointer;
+            user-select: none;
+        }
+        .frame-item.selected {
+            border-color: #7aa8f0;
+            background: #1f3762;
+            color: #fff;
+        }
+        .frame-item canvas {
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            object-fit: contain;
+            background:
+                linear-gradient(45deg, #202020 25%, transparent 25%),
+                linear-gradient(-45deg, #202020 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #202020 75%),
+                linear-gradient(-45deg, transparent 75%, #202020 75%);
+            background-size: 14px 14px;
+            background-position: 0 0, 0 7px, 7px -7px, -7px 0;
+        }
+        .frame-index {
+            text-align: center;
+            font-size: 12px;
+        }
+        /* Shared tool-suite skin; JavaScript selectors and canvas behavior are unchanged. */
+        body { align-items: stretch; background: var(--bg); color: var(--text); display: block; font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,"PingFang SC","Microsoft YaHei",Arial,sans-serif; padding: 0; }
+        .tool-main { padding: 42px 0 80px; }.tool-heading { margin-bottom: 26px; max-width: 760px; }.tool-heading h1 { color: var(--text); font-size: 38px; letter-spacing: 0; margin: 8px 0; text-align: left; }.tool-heading p { color: var(--muted); margin: 0; }
+        .container { background:transparent; border-radius:0; box-shadow:none; margin:0 auto; max-width:1080px; padding:0 24px; width:100%; }.editor-panel .container { margin:0; max-width:none; padding:0; }.container > h1 { display:none; }.workspace { align-items:stretch; display:grid; gap:18px; grid-template-columns:minmax(0,1fr) 340px; }.panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; box-shadow:var(--shadow); padding:20px; }.editor-panel,.preview-panel { display:flex; flex-direction:column; }.panel h2 { color:var(--text); font-size:18px; margin:0 0 16px; }
+        .drop-zone { align-items:center; background:color-mix(in srgb,var(--brand) 9%,var(--surface)); border:2px dashed color-mix(in srgb,var(--brand) 82%,var(--line)); border-radius:8px; color:var(--muted); display:flex; flex-direction:column; gap:10px; justify-content:center; min-height:190px; padding:22px; }.drop-zone.dragover { background:color-mix(in srgb,var(--brand) 15%,var(--surface)); border-color:var(--brand); }.controls { align-items:stretch; display:grid; gap:10px; grid-template-columns:repeat(3,minmax(0,1fr)); margin:16px 0 0; }.controls label { color:var(--text); display:grid; font-size:13px; gap:7px; }.controls input[type="number"],.controls select { background:var(--bg); border:1px solid var(--line); border-radius:6px; color:var(--text); font:inherit; padding:9px; width:100%; }.controls input[type="checkbox"] { accent-color:var(--brand); height:15px; width:15px; }.controls button { background:var(--surface); border:0; border-radius:6px; color:var(--text); cursor:pointer; font:inherit; font-weight:700; padding:9px 12px; }.controls button:hover { background:color-mix(in srgb,var(--brand) 12%,var(--surface)); }.controls button:disabled { cursor:not-allowed; opacity:.5; }
+        .canvas-wrapper { background:var(--surface); border-radius:8px; min-height:360px; padding:28px; }.canvas-wrapper canvas { background:transparent; border-radius:4px; max-height:100%; max-width:100%; }.info { color:var(--muted); font-size:13px; margin-top:14px; text-align:left; }.info span { color:var(--brand); }.gif-tools { border-top:1px solid var(--line); margin:18px 0 0; padding-top:16px; }.gif-tools-title { color:var(--text); font-size:15px; font-weight:700; margin-bottom:12px; }.gif-tools .controls { grid-template-columns:repeat(2,minmax(0,1fr)); }.frame-grid { background:var(--surface); border:1px solid var(--line); border-radius:8px; max-height:460px; padding:10px; }.frame-item { background:var(--panel); border-color:var(--line); color:var(--muted); }.frame-item.selected { background:color-mix(in srgb,var(--brand) 14%,var(--panel)); border-color:var(--brand); color:var(--text); }
+        @media (max-width:1000px) { .workspace { grid-template-columns:minmax(0,1fr); } } @media (max-width:680px) { .tool-main { padding-top:30px; }.tool-heading h1 { font-size:32px; }.workspace,.panel { max-width:calc(100vw - 36px); min-width:0; width:100%; }.workspace { grid-template-columns:minmax(0,1fr); overflow:hidden; }.panel { padding:16px; }.controls,.gif-tools .controls { grid-template-columns:minmax(0,1fr); }.canvas-wrapper { min-height:320px; padding:16px; } }
+    </style>
+</head>
+<body>
+<main class="tool-main"><div class="wrap"><header class="tool-heading"><div class="eyebrow">免费特效工具</div><h1>精灵表动画预览器</h1><p>预览精灵表动画、导出 GIF，并从 GIF 反向整理为图集。</p></header><section class="panel editor-panel" aria-labelledby="sprite-title"><h2 id="sprite-title">精灵表动画</h2><div class="container">
+    <h1>🎞️ 精灵表动画预览</h1>
+    <div class="drop-zone" id="dropZone">
+        <p>📁 拖拽图片到此处，或点击上传</p>
+        <input type="file" id="fileInput" accept="image/*" style="display:none;">
+    </div>
+
+    <div class="controls" id="spriteControls">
+        <label>行数 <input type="number" id="rows" value="1" min="1" step="1"></label>
+        <label>列数 <input type="number" id="cols" value="1" min="1" step="1"></label>
+        <label>FPS <input type="number" id="fps" value="12" min="1" max="60" step="1"></label>
+        <label>GIF背景
+            <select id="gifBgMode">
+                <option value="transparent" selected>透明</option>
+                <option value="dark">深色</option>
+            </select>
+        </label>
+        <button id="playBtn">▶ 播放</button>
+        <button id="resetBtn">⟲ 重置</button>
+        <button id="downloadGifBtn">⬇ 下载 GIF</button>
+    </div>
+
+    <div class="gif-tools" id="gifTools">
+        <div class="gif-tools-title">GIF 反向转图集</div>
+        <div class="controls">
+            <label>每行帧数 <input type="number" id="sheetCols" value="1" min="1" step="1"></label>
+            <label><input type="checkbox" id="unmultBlack"> 去黑背景</label>
+            <button id="selectAllFramesBtn">全选</button>
+            <button id="clearFramesBtn">清空选择</button>
+            <button id="downloadSheetBtn">⬇ 下载图集 PNG</button>
+        </div>
+    </div>
+
+    <div class="canvas-wrapper">
+        <canvas id="canvas"></canvas>
+        <div class="frame-grid" id="frameGrid"></div>
+    </div>
+    <div class="info" id="info">等待加载图片...</div>
+</div></section></div></main>
+
+<script>
+    (function() {
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const spriteControls = document.getElementById('spriteControls');
+        const rowsInput = document.getElementById('rows');
+        const colsInput = document.getElementById('cols');
+        const fpsInput = document.getElementById('fps');
+        const gifBgModeInput = document.getElementById('gifBgMode');
+        const playBtn = document.getElementById('playBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const downloadGifBtn = document.getElementById('downloadGifBtn');
+        const gifTools = document.getElementById('gifTools');
+        const sheetColsInput = document.getElementById('sheetCols');
+        const unmultBlackInput = document.getElementById('unmultBlack');
+        const selectAllFramesBtn = document.getElementById('selectAllFramesBtn');
+        const clearFramesBtn = document.getElementById('clearFramesBtn');
+        const downloadSheetBtn = document.getElementById('downloadSheetBtn');
+        const frameGrid = document.getElementById('frameGrid');
+        const infoDiv = document.getElementById('info');
+
+        let mode = 'sprite';
+        let spriteSheet = null;
+        let gifFrames = [];
+        let gifFrameSize = null;
+        let selectedGifFrames = [];
+        let animId = null;
+        let currentFrame = 0;
+        let playing = false;
+
+        function setMode(nextMode) {
+            mode = nextMode;
+            const gifMode = mode === 'gif';
+            spriteControls.style.display = gifMode ? 'none' : 'flex';
+            gifTools.classList.toggle('active', gifMode);
+            canvas.style.display = gifMode ? 'none' : 'block';
+            frameGrid.classList.toggle('active', gifMode);
+        }
+
+        // 计算画布尺寸（基于每帧大小，最大 750px）
+        function calcCanvasSize(frameW, frameH) {
+            const maxSize = 750;
+            let scale = 1;
+            if (frameW > maxSize || frameH > maxSize) {
+                scale = Math.min(maxSize / frameW, maxSize / frameH);
+            }
+            // 最小尺寸限制为 20px
+            let w = Math.max(20, frameW * scale);
+            let h = Math.max(20, frameH * scale);
+            return { width: Math.round(w), height: Math.round(h), scale: scale };
+        }
+
+        // 更新画布尺寸并绘制当前帧
+        function updatePreview() {
+            if (mode === 'gif') return;
+            if (!spriteSheet) return;
+            const rows = parseInt(rowsInput.value) || 1;
+            const cols = parseInt(colsInput.value) || 1;
+            const frameW = Math.floor(spriteSheet.width / cols);
+            const frameH = Math.floor(spriteSheet.height / rows);
+            if (frameW === 0 || frameH === 0) return;
+
+            const { width, height } = calcCanvasSize(frameW, frameH);
+            canvas.width = width;
+            canvas.height = height;
+
+            drawFrame(currentFrame % (rows * cols));
+        }
+
+        function drawFrame(frameIndex) {
+            if (!spriteSheet) return;
+            const rows = parseInt(rowsInput.value) || 1;
+            const cols = parseInt(colsInput.value) || 1;
+            const totalFrames = rows * cols;
+            if (totalFrames === 0) return;
+
+            const frameW = Math.floor(spriteSheet.width / cols);
+            const frameH = Math.floor(spriteSheet.height / rows);
+            const col = frameIndex % cols;
+            const row = Math.floor(frameIndex / cols);
+            const sx = col * frameW;
+            const sy = row * frameH;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(spriteSheet, sx, sy, frameW, frameH, 0, 0, canvas.width, canvas.height);
+        }
+
+        function playAnimation() {
+            if (!spriteSheet) return;
+            if (playing) {
+                stopAnimation();
+                playBtn.textContent = '▶ 播放';
+                return;
+            }
+            const totalFrames = (parseInt(rowsInput.value) || 1) * (parseInt(colsInput.value) || 1);
+            if (totalFrames <= 0) return;
+            const fps = parseInt(fpsInput.value) || 12;
+            const interval = 1000 / fps;
+            let lastTime = performance.now();
+
+            playing = true;
+            playBtn.textContent = '⏹ 停止';
+
+            function step(time) {
+                if (!playing) return;
+                const delta = time - lastTime;
+                if (delta >= interval) {
+                    currentFrame = (currentFrame + 1) % totalFrames;
+                    drawFrame(currentFrame);
+                    lastTime = time;
+                }
+                animId = requestAnimationFrame(step);
+            }
+            animId = requestAnimationFrame(step);
+        }
+
+        function stopAnimation() {
+            if (animId) {
+                cancelAnimationFrame(animId);
+                animId = null;
+            }
+            playing = false;
+            playBtn.textContent = '▶ 播放';
+        }
+
+        function resetAnimation() {
+            stopAnimation();
+            currentFrame = 0;
+            updatePreview();  // 关键：重新计算画布尺寸并绘制
+            updateInfo();
+        }
+
+        function updateInfo() {
+            if (!spriteSheet) {
+                if (gifFrames.length > 0 && gifFrameSize) {
+                    const cols = Math.max(1, parseInt(sheetColsInput.value) || 1);
+                    const selectedCount = selectedGifFrames.length;
+                    const rows = Math.ceil(Math.max(1, selectedCount) / cols);
+                    infoDiv.textContent = `GIF: ${gifFrames.length} 帧，已选 ${selectedCount} 帧，每帧 ${gifFrameSize.width}×${gifFrameSize.height}，图集: ${cols}×${rows}`;
+                } else {
+                    infoDiv.textContent = '等待加载图片...';
+                }
+                return;
+            }
+            const rows = parseInt(rowsInput.value) || 1;
+            const cols = parseInt(colsInput.value) || 1;
+            const frameW = Math.floor(spriteSheet.width / cols);
+            const frameH = Math.floor(spriteSheet.height / rows);
+            const total = rows * cols;
+            infoDiv.innerHTML = `图片: ${spriteSheet.width}×${spriteSheet.height}，每帧: ${frameW}×${frameH}，帧数: ${total}，当前帧: ${currentFrame}`;
+        }
+
+        function getExportSettings() {
+            const rows = Math.max(1, parseInt(rowsInput.value) || 1);
+            const cols = Math.max(1, parseInt(colsInput.value) || 1);
+            const fps = Math.min(60, Math.max(1, parseInt(fpsInput.value) || 12));
+            const frameW = Math.floor(spriteSheet.width / cols);
+            const frameH = Math.floor(spriteSheet.height / rows);
+            const totalFrames = rows * cols;
+
+            if (frameW <= 0 || frameH <= 0) {
+                throw new Error('行数或列数过大，无法切出有效帧。');
+            }
+
+            return { rows, cols, fps, frameW, frameH, totalFrames };
+        }
+
+        function getColorDistance(a, b) {
+            const dr = a[0] - b[0];
+            const dg = a[1] - b[1];
+            const db = a[2] - b[2];
+            return dr * dr * 0.3 + dg * dg * 0.59 + db * db * 0.11;
+        }
+
+        function makeAdaptivePalette(samples, maxColors) {
+            let boxes = [{
+                colors: samples,
+                rMin: 0, rMax: 255,
+                gMin: 0, gMax: 255,
+                bMin: 0, bMax: 255
+            }];
+
+            function updateBox(box) {
+                let rMin = 255, rMax = 0, gMin = 255, gMax = 0, bMin = 255, bMax = 0;
+                for (const color of box.colors) {
+                    if (color[0] < rMin) rMin = color[0];
+                    if (color[0] > rMax) rMax = color[0];
+                    if (color[1] < gMin) gMin = color[1];
+                    if (color[1] > gMax) gMax = color[1];
+                    if (color[2] < bMin) bMin = color[2];
+                    if (color[2] > bMax) bMax = color[2];
+                }
+                box.rMin = rMin; box.rMax = rMax;
+                box.gMin = gMin; box.gMax = gMax;
+                box.bMin = bMin; box.bMax = bMax;
+                return box;
+            }
+
+            boxes = boxes.map(updateBox);
+            while (boxes.length < maxColors) {
+                boxes.sort((a, b) => {
+                    const aRange = Math.max(a.rMax - a.rMin, a.gMax - a.gMin, a.bMax - a.bMin);
+                    const bRange = Math.max(b.rMax - b.rMin, b.gMax - b.gMin, b.bMax - b.bMin);
+                    return bRange * b.colors.length - aRange * a.colors.length;
+                });
+
+                const box = boxes.shift();
+                if (!box || box.colors.length <= 1) {
+                    if (box) boxes.push(box);
+                    break;
+                }
+
+                const rRange = box.rMax - box.rMin;
+                const gRange = box.gMax - box.gMin;
+                const bRange = box.bMax - box.bMin;
+                const channel = gRange >= rRange && gRange >= bRange ? 1 : (rRange >= bRange ? 0 : 2);
+                box.colors.sort((a, b) => a[channel] - b[channel]);
+                const mid = Math.floor(box.colors.length / 2);
+                boxes.push(updateBox({ colors: box.colors.slice(0, mid) }));
+                boxes.push(updateBox({ colors: box.colors.slice(mid) }));
+            }
+
+            const palette = [];
+            for (const box of boxes) {
+                let r = 0, g = 0, b = 0;
+                for (const color of box.colors) {
+                    r += color[0];
+                    g += color[1];
+                    b += color[2];
+                }
+                const count = Math.max(1, box.colors.length);
+                palette.push([
+                    Math.round(r / count),
+                    Math.round(g / count),
+                    Math.round(b / count)
+                ]);
+            }
+
+            while (palette.length < maxColors) {
+                palette.push([0, 0, 0]);
+            }
+            return palette.slice(0, maxColors);
+        }
+
+        function imageDataToColorSamples(imageData, maxSamples, transparentMode) {
+            const src = imageData.data;
+            const totalPixels = src.length / 4;
+            const step = Math.max(1, Math.floor(totalPixels / maxSamples));
+            const samples = [];
+            for (let p = 0; p < totalPixels; p += step) {
+                const i = p * 4;
+                if (transparentMode && src[i + 3] < 128) continue;
+                samples.push([src[i], src[i + 1], src[i + 2]]);
+            }
+            return samples;
+        }
+
+        function imageDataToPaletteIndexes(imageData, palette, transparentMode) {
+            const src = imageData.data;
+            const indexed = new Uint8Array(imageData.width * imageData.height);
+            const cache = new Map();
+
+            for (let i = 0, p = 0; i < src.length; i += 4, p++) {
+                if (transparentMode && src[i + 3] < 128) {
+                    indexed[p] = 0;
+                    continue;
+                }
+                const key = `${src[i] >> 2},${src[i + 1] >> 2},${src[i + 2] >> 2}`;
+                let bestIndex = cache.get(key);
+                if (bestIndex === undefined) {
+                    let bestDistance = Infinity;
+                    const color = [src[i], src[i + 1], src[i + 2]];
+                    for (let c = 0; c < palette.length; c++) {
+                        const distance = getColorDistance(color, palette[c]);
+                        if (distance < bestDistance) {
+                            bestDistance = distance;
+                            bestIndex = c;
+                        }
+                    }
+                    cache.set(key, bestIndex);
+                }
+                indexed[p] = bestIndex;
+            }
+            return indexed;
+        }
+
+        function lzwEncodeIndexedPixels(indexedPixels) {
+            const minCodeSize = 8;
+            const clearCode = 1 << minCodeSize;
+            const endCode = clearCode + 1;
+            const codeSize = minCodeSize + 1;
+            const bytes = [];
+            let bitBuffer = 0;
+            let bitCount = 0;
+            let codesSinceClear = 0;
+
+            function writeCode(code) {
+                bitBuffer |= code << bitCount;
+                bitCount += codeSize;
+                while (bitCount >= 8) {
+                    bytes.push(bitBuffer & 255);
+                    bitBuffer >>= 8;
+                    bitCount -= 8;
+                }
+            }
+
+            writeCode(clearCode);
+            for (let i = 0; i < indexedPixels.length; i++) {
+                if (codesSinceClear >= 250) {
+                    writeCode(clearCode);
+                    codesSinceClear = 0;
+                }
+                writeCode(indexedPixels[i]);
+                codesSinceClear++;
+            }
+            writeCode(endCode);
+
+            if (bitCount > 0) {
+                bytes.push(bitBuffer & 255);
+            }
+
+            const blocks = [minCodeSize];
+            for (let i = 0; i < bytes.length; i += 255) {
+                const block = bytes.slice(i, i + 255);
+                blocks.push(block.length, ...block);
+            }
+            blocks.push(0);
+            return blocks;
+        }
+
+        function createGifBlob(frames, width, height, fps, paletteColors, transparentMode) {
+            const bytes = [];
+            const delay = Math.max(2, Math.round(100 / fps));
+
+            function writeByte(value) {
+                bytes.push(value & 255);
+            }
+
+            function writeWord(value) {
+                writeByte(value);
+                writeByte(value >> 8);
+            }
+
+            function writeAscii(text) {
+                for (let i = 0; i < text.length; i++) {
+                    writeByte(text.charCodeAt(i));
+                }
+            }
+
+            writeAscii('GIF89a');
+            writeWord(width);
+            writeWord(height);
+            writeByte(0xf7);
+            writeByte(0);
+            writeByte(0);
+            for (const color of paletteColors) {
+                bytes.push(color[0], color[1], color[2]);
+            }
+
+            writeByte(0x21);
+            writeByte(0xff);
+            writeByte(11);
+            writeAscii('NETSCAPE2.0');
+            writeByte(3);
+            writeByte(1);
+            writeWord(0);
+            writeByte(0);
+
+            for (const frame of frames) {
+                writeByte(0x21);
+                writeByte(0xf9);
+                writeByte(4);
+                writeByte(transparentMode ? 1 : 0);
+                writeWord(delay);
+                writeByte(0);
+                writeByte(0);
+
+                writeByte(0x2c);
+                writeWord(0);
+                writeWord(0);
+                writeWord(width);
+                writeWord(height);
+                writeByte(0);
+
+                bytes.push(...lzwEncodeIndexedPixels(frame));
+            }
+
+            writeByte(0x3b);
+            return new Blob([new Uint8Array(bytes)], { type: 'image/gif' });
+        }
+
+        async function downloadGif() {
+            if (!spriteSheet) {
+                alert('请先加载图片');
+                return;
+            }
+
+            let settings;
+            try {
+                settings = getExportSettings();
+            } catch (error) {
+                alert(error.message);
+                return;
+            }
+
+            stopAnimation();
+            downloadGifBtn.disabled = true;
+            downloadGifBtn.textContent = '⏳ 生成中...';
+            infoDiv.textContent = '正在生成 GIF...';
+
+            try {
+                const { rows, cols, fps, frameW, frameH, totalFrames } = settings;
+                const transparentMode = gifBgModeInput.value === 'transparent';
+                const { width, height } = calcCanvasSize(frameW, frameH);
+                const exportCanvas = document.createElement('canvas');
+                const exportCtx = exportCanvas.getContext('2d', { willReadFrequently: true });
+                exportCanvas.width = width;
+                exportCanvas.height = height;
+
+                const frameImageData = [];
+                const samples = [];
+                for (let i = 0; i < totalFrames; i++) {
+                    const col = i % cols;
+                    const row = Math.floor(i / cols);
+                    exportCtx.clearRect(0, 0, width, height);
+                    if (!transparentMode) {
+                        exportCtx.fillStyle = '#111111';
+                        exportCtx.fillRect(0, 0, width, height);
+                    }
+                    exportCtx.drawImage(
+                        spriteSheet,
+                        col * frameW,
+                        row * frameH,
+                        frameW,
+                        frameH,
+                        0,
+                        0,
+                        width,
+                        height
+                    );
+                    const imageData = exportCtx.getImageData(0, 0, width, height);
+                    frameImageData.push(imageData);
+                    samples.push(...imageDataToColorSamples(imageData, Math.ceil(12000 / totalFrames), transparentMode));
+                    infoDiv.textContent = `正在分析颜色... ${i + 1}/${totalFrames}`;
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
+
+                const paletteSize = transparentMode ? 255 : 256;
+                let palette = makeAdaptivePalette(samples.length ? samples : [[0, 0, 0]], paletteSize);
+                if (transparentMode) {
+                    palette = [[0, 0, 0], ...palette].slice(0, 256);
+                }
+                const frames = [];
+                for (let i = 0; i < frameImageData.length; i++) {
+                    frames.push(imageDataToPaletteIndexes(frameImageData[i], palette, transparentMode));
+                    infoDiv.textContent = `正在编码 GIF... ${i + 1}/${totalFrames}`;
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
+
+                const blob = createGifBlob(frames, width, height, fps, palette, transparentMode);
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'sprite-preview.gif';
+                document.body.appendChild(link);
+                link.click();
+                link.remove();
+                URL.revokeObjectURL(url);
+                infoDiv.textContent = `GIF 已生成：${width}×${height}，${totalFrames} 帧，${fps} FPS`;
+            } catch (error) {
+                console.error(error);
+                alert(`生成 GIF 失败：${error.message}`);
+                updateInfo();
+            } finally {
+                downloadGifBtn.disabled = false;
+                downloadGifBtn.textContent = '⬇ 下载 GIF';
+            }
+        }
+
+        function readGifFrames(buffer) {
+            const bytes = new Uint8Array(buffer);
+            let pos = 0;
+
+            function readByte() {
+                return bytes[pos++];
+            }
+
+            function readWord() {
+                const value = bytes[pos] | (bytes[pos + 1] << 8);
+                pos += 2;
+                return value;
+            }
+
+            function readString(length) {
+                let text = '';
+                for (let i = 0; i < length; i++) text += String.fromCharCode(readByte());
+                return text;
+            }
+
+            function readColorTable(size) {
+                const table = [];
+                for (let i = 0; i < size; i++) {
+                    table.push([readByte(), readByte(), readByte()]);
+                }
+                return table;
+            }
+
+            function readSubBlocks() {
+                const chunks = [];
+                let total = 0;
+                while (true) {
+                    const size = readByte();
+                    if (size === 0) break;
+                    chunks.push(bytes.slice(pos, pos + size));
+                    total += size;
+                    pos += size;
+                }
+                const data = new Uint8Array(total);
+                let offset = 0;
+                for (const chunk of chunks) {
+                    data.set(chunk, offset);
+                    offset += chunk.length;
+                }
+                return data;
+            }
+
+            function lzwDecode(minCodeSize, data, expectedSize) {
+                let bitPos = 0;
+                let codeSize = minCodeSize + 1;
+                const clearCode = 1 << minCodeSize;
+                const endCode = clearCode + 1;
+                let dict = [];
+                let nextCode = endCode + 1;
+                const output = [];
+
+                function resetDict() {
+                    dict = [];
+                    for (let i = 0; i < clearCode; i++) dict[i] = [i];
+                    dict[clearCode] = [];
+                    dict[endCode] = null;
+                    codeSize = minCodeSize + 1;
+                    nextCode = endCode + 1;
+                }
+
+                function readCode() {
+                    let code = 0;
+                    for (let i = 0; i < codeSize; i++) {
+                        const byte = data[bitPos >> 3];
+                        if (byte & (1 << (bitPos & 7))) code |= 1 << i;
+                        bitPos++;
+                    }
+                    return code;
+                }
+
+                resetDict();
+                let prev = null;
+                while (output.length < expectedSize) {
+                    const code = readCode();
+                    if (code === clearCode) {
+                        resetDict();
+                        prev = null;
+                        continue;
+                    }
+                    if (code === endCode) break;
+
+                    let entry;
+                    if (dict[code]) {
+                        entry = dict[code].slice();
+                    } else if (code === nextCode && prev) {
+                        entry = prev.concat(prev[0]);
+                    } else {
+                        break;
+                    }
+
+                    output.push(...entry);
+
+                    if (prev) {
+                        dict[nextCode] = prev.concat(entry[0]);
+                        nextCode++;
+                        if (nextCode === (1 << codeSize) && codeSize < 12) codeSize++;
+                    }
+                    prev = entry;
+                }
+
+                return output.slice(0, expectedSize);
+            }
+
+            const header = readString(6);
+            if (header !== 'GIF87a' && header !== 'GIF89a') {
+                throw new Error('不是有效的 GIF 文件。');
+            }
+
+            const width = readWord();
+            const height = readWord();
+            const packed = readByte();
+            readByte();
+            readByte();
+            const hasGlobalColorTable = (packed & 0x80) !== 0;
+            const globalColorCount = 1 << ((packed & 0x07) + 1);
+            const globalColorTable = hasGlobalColorTable ? readColorTable(globalColorCount) : [];
+            const frames = [];
+            const canvasPixels = new Uint8ClampedArray(width * height * 4);
+            let previousPixels = null;
+            let gce = { disposal: 0, transparentIndex: null, delay: 0 };
+
+            while (pos < bytes.length) {
+                const marker = readByte();
+                if (marker === 0x3b) break;
+
+                if (marker === 0x21) {
+                    const label = readByte();
+                    if (label === 0xf9) {
+                        readByte();
+                        const packedGce = readByte();
+                        const delay = readWord();
+                        const transparentIndex = readByte();
+                        readByte();
+                        gce = {
+                            disposal: (packedGce >> 2) & 0x07,
+                            transparentIndex: (packedGce & 1) ? transparentIndex : null,
+                            delay
+                        };
+                    } else {
+                        readSubBlocks();
+                    }
+                    continue;
+                }
+
+                if (marker !== 0x2c) {
+                    throw new Error('GIF 数据结构无法识别。');
+                }
+
+                const left = readWord();
+                const top = readWord();
+                const frameW = readWord();
+                const frameH = readWord();
+                const imagePacked = readByte();
+                const hasLocalColorTable = (imagePacked & 0x80) !== 0;
+                const interlaced = (imagePacked & 0x40) !== 0;
+                const localColorCount = 1 << ((imagePacked & 0x07) + 1);
+                const colorTable = hasLocalColorTable ? readColorTable(localColorCount) : globalColorTable;
+                const minCodeSize = readByte();
+                const compressed = readSubBlocks();
+                let indexes = lzwDecode(minCodeSize, compressed, frameW * frameH);
+
+                if (interlaced) {
+                    const reordered = new Array(frameW * frameH);
+                    let sourceRow = 0;
+                    const passes = [[0, 8], [4, 8], [2, 4], [1, 2]];
+                    for (const [start, step] of passes) {
+                        for (let y = start; y < frameH; y += step) {
+                            for (let x = 0; x < frameW; x++) {
+                                reordered[y * frameW + x] = indexes[sourceRow * frameW + x];
+                            }
+                            sourceRow++;
+                        }
+                    }
+                    indexes = reordered;
+                }
+
+                if (gce.disposal === 3) {
+                    previousPixels = new Uint8ClampedArray(canvasPixels);
+                }
+
+                for (let y = 0; y < frameH; y++) {
+                    for (let x = 0; x < frameW; x++) {
+                        const colorIndex = indexes[y * frameW + x];
+                        if (colorIndex === gce.transparentIndex) continue;
+                        const color = colorTable[colorIndex] || [0, 0, 0];
+                        const dest = ((top + y) * width + (left + x)) * 4;
+                        canvasPixels[dest] = color[0];
+                        canvasPixels[dest + 1] = color[1];
+                        canvasPixels[dest + 2] = color[2];
+                        canvasPixels[dest + 3] = 255;
+                    }
+                }
+
+                frames.push({
+                    imageData: new ImageData(new Uint8ClampedArray(canvasPixels), width, height),
+                    delay: gce.delay
+                });
+
+                if (gce.disposal === 2) {
+                    for (let y = 0; y < frameH; y++) {
+                        for (let x = 0; x < frameW; x++) {
+                            const dest = ((top + y) * width + (left + x)) * 4;
+                            canvasPixels[dest] = 0;
+                            canvasPixels[dest + 1] = 0;
+                            canvasPixels[dest + 2] = 0;
+                            canvasPixels[dest + 3] = 0;
+                        }
+                    }
+                } else if (gce.disposal === 3 && previousPixels) {
+                    canvasPixels.set(previousPixels);
+                }
+
+                gce = { disposal: 0, transparentIndex: null, delay: 0 };
+            }
+
+            if (frames.length === 0) {
+                throw new Error('没有从 GIF 中读取到帧。');
+            }
+
+            return { width, height, frames };
+        }
+
+        function showGifPreview() {
+            if (!gifFrames.length || !gifFrameSize) return;
+            spriteSheet = null;
+            stopAnimation();
+            setMode('gif');
+            rowsInput.value = 1;
+            colsInput.value = gifFrames.length;
+            currentFrame = 0;
+            selectedGifFrames = gifFrames.map((_, index) => index);
+            renderGifFrameGrid();
+            updateInfo();
+        }
+
+        function renderGifFrameGrid() {
+            frameGrid.innerHTML = '';
+            const thumbSize = 96;
+            for (let i = 0; i < gifFrames.length; i++) {
+                const item = document.createElement('div');
+                item.className = selectedGifFrames.includes(i) ? 'frame-item selected' : 'frame-item';
+                item.dataset.index = String(i);
+
+                const thumb = document.createElement('canvas');
+                thumb.width = thumbSize;
+                thumb.height = thumbSize;
+                const thumbCtx = thumb.getContext('2d');
+                const frameCanvas = document.createElement('canvas');
+                frameCanvas.width = gifFrameSize.width;
+                frameCanvas.height = gifFrameSize.height;
+                frameCanvas.getContext('2d').putImageData(gifFrames[i].imageData, 0, 0);
+                const scale = Math.min(thumbSize / gifFrameSize.width, thumbSize / gifFrameSize.height);
+                const w = Math.max(1, Math.round(gifFrameSize.width * scale));
+                const h = Math.max(1, Math.round(gifFrameSize.height * scale));
+                const x = Math.round((thumbSize - w) / 2);
+                const y = Math.round((thumbSize - h) / 2);
+                thumbCtx.imageSmoothingEnabled = false;
+                thumbCtx.clearRect(0, 0, thumbSize, thumbSize);
+                thumbCtx.drawImage(frameCanvas, x, y, w, h);
+
+                const label = document.createElement('div');
+                label.className = 'frame-index';
+                label.textContent = `#${i + 1}`;
+
+                item.appendChild(thumb);
+                item.appendChild(label);
+                item.addEventListener('click', () => toggleGifFrame(i));
+                frameGrid.appendChild(item);
+            }
+        }
+
+        function toggleGifFrame(index) {
+            if (selectedGifFrames.includes(index)) {
+                selectedGifFrames = selectedGifFrames.filter(item => item !== index);
+            } else {
+                selectedGifFrames = [...selectedGifFrames, index].sort((a, b) => a - b);
+            }
+            const item = frameGrid.querySelector(`[data-index="${index}"]`);
+            if (item) item.classList.toggle('selected', selectedGifFrames.includes(index));
+            updateInfo();
+        }
+
+        function unmultBlackImageData(imageData) {
+            const data = new Uint8ClampedArray(imageData.data);
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+                const sourceAlpha = data[i + 3] / 255;
+                const brightnessAlpha = Math.max(r, g, b) / 255;
+                const alpha = Math.max(0, Math.min(1, brightnessAlpha * sourceAlpha));
+
+                if (alpha <= 0.003) {
+                    data[i] = 0;
+                    data[i + 1] = 0;
+                    data[i + 2] = 0;
+                    data[i + 3] = 0;
+                    continue;
+                }
+
+                data[i] = Math.min(255, Math.round(r / alpha));
+                data[i + 1] = Math.min(255, Math.round(g / alpha));
+                data[i + 2] = Math.min(255, Math.round(b / alpha));
+                data[i + 3] = Math.round(alpha * 255);
+            }
+            return new ImageData(data, imageData.width, imageData.height);
+        }
+
+        async function loadGif(file) {
+            stopAnimation();
+            infoDiv.textContent = '正在读取 GIF...';
+            const buffer = await file.arrayBuffer();
+            const decoded = readGifFrames(buffer);
+            gifFrames = decoded.frames;
+            gifFrameSize = { width: decoded.width, height: decoded.height };
+            sheetColsInput.value = Math.max(1, Math.ceil(Math.sqrt(gifFrames.length)));
+            showGifPreview();
+            dropZone.innerHTML = `<p>✅ 已加载 GIF：${file.name}</p>`;
+        }
+
+        function downloadSheetPng() {
+            if (!gifFrames.length || !gifFrameSize) {
+                alert('请先拖入一个 GIF 文件');
+                return;
+            }
+            if (selectedGifFrames.length === 0) {
+                alert('请至少选择一帧');
+                return;
+            }
+
+            const cols = Math.max(1, parseInt(sheetColsInput.value) || 1);
+            const rows = Math.ceil(selectedGifFrames.length / cols);
+            const useUnmult = unmultBlackInput.checked;
+            const sheetCanvas = document.createElement('canvas');
+            const sheetCtx = sheetCanvas.getContext('2d');
+            sheetCanvas.width = gifFrameSize.width * cols;
+            sheetCanvas.height = gifFrameSize.height * rows;
+
+            const frameCanvas = document.createElement('canvas');
+            const frameCtx = frameCanvas.getContext('2d');
+            frameCanvas.width = gifFrameSize.width;
+            frameCanvas.height = gifFrameSize.height;
+
+            for (let i = 0; i < selectedGifFrames.length; i++) {
+                const frameIndex = selectedGifFrames[i];
+                frameCtx.clearRect(0, 0, frameCanvas.width, frameCanvas.height);
+                const imageData = useUnmult ? unmultBlackImageData(gifFrames[frameIndex].imageData) : gifFrames[frameIndex].imageData;
+                frameCtx.putImageData(imageData, 0, 0);
+                const x = (i % cols) * gifFrameSize.width;
+                const y = Math.floor(i / cols) * gifFrameSize.height;
+                sheetCtx.drawImage(frameCanvas, x, y);
+            }
+
+            const url = sheetCanvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `gif-spritesheet-${cols}x${rows}.png`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            infoDiv.textContent = `图集已生成：${sheetCanvas.width}×${sheetCanvas.height}，${cols}×${rows}，${selectedGifFrames.length} 帧${useUnmult ? '，已去黑' : ''}`;
+        }
+
+        // 加载图片
+        function loadImage(file) {
+            setMode('sprite');
+            gifFrames = [];
+            gifFrameSize = null;
+            selectedGifFrames = [];
+            frameGrid.innerHTML = '';
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    spriteSheet = img;
+                    rowsInput.value = 1;
+                    colsInput.value = 1;
+                    currentFrame = 0;
+                    stopAnimation();
+                    updatePreview();
+                    updateInfo();
+                    // 显示缩略图
+                    const dropZoneImg = dropZone.querySelector('img');
+                    if (dropZoneImg) {
+                        dropZoneImg.src = e.target.result;
+                    } else {
+                        const imgEl = document.createElement('img');
+                        imgEl.src = e.target.result;
+                        dropZone.innerHTML = '';
+                        dropZone.appendChild(imgEl);
+                    }
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // 事件绑定
+        dropZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                const file = e.target.files[0];
+                if (file.type === 'image/gif') {
+                    loadGif(file).catch(error => {
+                        console.error(error);
+                        alert(`读取 GIF 失败：${error.message}`);
+                        updateInfo();
+                    });
+                } else {
+                    loadImage(file);
+                }
+            }
+        });
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].type === 'image/gif') {
+                loadGif(files[0]).catch(error => {
+                    console.error(error);
+                    alert(`读取 GIF 失败：${error.message}`);
+                    updateInfo();
+                });
+            } else if (files.length > 0 && files[0].type.startsWith('image/')) {
+                loadImage(files[0]);
+            } else {
+                alert('请拖入图片文件');
+            }
+        });
+
+        // 参数变化时刷新
+        rowsInput.addEventListener('change', () => {
+            stopAnimation();
+            resetAnimation();
+        });
+        colsInput.addEventListener('change', () => {
+            stopAnimation();
+            resetAnimation();
+        });
+        fpsInput.addEventListener('change', () => {
+            if (playing) {
+                stopAnimation();
+                playAnimation();
+            }
+        });
+
+        playBtn.addEventListener('click', playAnimation);
+        resetBtn.addEventListener('click', resetAnimation);
+        downloadGifBtn.addEventListener('click', downloadGif);
+        sheetColsInput.addEventListener('change', updateInfo);
+        selectAllFramesBtn.addEventListener('click', () => {
+            selectedGifFrames = gifFrames.map((_, index) => index);
+            renderGifFrameGrid();
+            updateInfo();
+        });
+        clearFramesBtn.addEventListener('click', () => {
+            selectedGifFrames = [];
+            renderGifFrameGrid();
+            updateInfo();
+        });
+        downloadSheetBtn.addEventListener('click', downloadSheetPng);
+
+        // 初始化
+        resetAnimation();
+    })();
+</script>
+</body>
+</html>

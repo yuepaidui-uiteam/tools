@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>视频比特率压缩工具</title>
+  <link rel="stylesheet" href="assets/tools/tools.css">
+  <style>
+    .tool-main{padding:42px 0 80px}.tool-heading{margin-bottom:26px;max-width:760px}.tool-heading h1{font-size:38px;letter-spacing:0;margin:8px 0}.tool-heading p{color:var(--muted);margin:0}.workspace{align-items:start;display:grid;gap:18px;grid-template-columns:minmax(0,1fr) 340px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:var(--shadow);padding:20px}.panel h2{font-size:18px;margin:0 0 16px}.control{display:grid;gap:7px;margin-bottom:15px}.control label{font-size:13px;font-weight:750}.control input{background:var(--bg);border:1px solid var(--line);border-radius:6px;color:var(--text);font:inherit;padding:9px;width:100%}.drop{align-items:center;background:color-mix(in srgb,var(--brand) 9%,var(--surface));border:2px dashed color-mix(in srgb,var(--brand) 82%,var(--line));border-radius:8px;color:var(--muted);cursor:pointer;display:flex;flex-direction:column;gap:10px;justify-content:center;min-height:190px;padding:22px;text-align:center}.drop.drag{border-color:var(--brand);background:color-mix(in srgb,var(--brand) 15%,var(--surface))}.drop strong{color:var(--text);font-size:17px}.drop span{font-size:13px}.button{border:0;cursor:pointer;margin:0}.button.secondary{background:var(--surface);color:var(--text)}.button:disabled{cursor:not-allowed;opacity:.5}.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}.actions .button{min-width:120px}.file-input{display:none}.info{display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr));margin-top:16px}.stat{background:var(--surface);border-radius:6px;padding:10px}.stat small{color:var(--muted);display:block;font-size:12px}.stat b{display:block;font-size:14px;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.status{color:var(--muted);font-size:13px;margin:14px 0 0;min-height:40px}.status.error{color:#bd3042}.status.success{color:#167447}.progress-wrap{margin-top:14px}.progress-wrap progress{accent-color:var(--brand);height:10px;width:100%}.note{color:var(--muted);font-size:12px;line-height:1.6;margin:0}.preview-panel{display:flex;flex-direction:column;gap:14px}.preview-panel h2{margin-bottom:0}.summary{background:var(--surface);border-radius:8px;padding:14px}.summary strong{display:block;font-size:15px}.summary p{color:var(--muted);font-size:13px;margin:6px 0 0}.download-button{margin-top:0;width:100%}@media(max-width:1000px){.workspace{grid-template-columns:minmax(0,1fr)}.preview-panel{grid-column:auto}}@media(max-width:680px){.tool-main{padding-top:30px}.tool-heading h1{font-size:32px}.workspace,.panel{max-width:calc(100vw - 36px);min-width:0;width:100%}.workspace{grid-template-columns:minmax(0,1fr);overflow:hidden}.panel{padding:16px}.control input,.button{max-width:100%;min-width:0}.actions{align-items:stretch;flex-direction:column}.actions .button{width:100%}}
+  </style>
+</head>
+<body>
+<main class="tool-main"><div class="wrap">
+  <header class="tool-heading"><div class="eyebrow">免费媒体工具</div><h1>视频比特率压缩工具</h1><p>在浏览器本地处理 MP4，不需要安装 FFmpeg，视频不会上传到服务器。</p></header>
+  <div class="workspace">
+  <section class="panel" aria-labelledby="compress-title">
+    <h2 id="compress-title">压缩设置</h2>
+    <input id="fileInput" type="file" accept="video/mp4,.mp4" hidden>
+    <div id="dropZone" class="drop" tabindex="0" role="button">
+      <strong>选择或拖入 MP4 视频</strong><span>单文件模式，原始视频不会被覆盖</span>
+    </div>
+    <div class="control" style="margin-top:16px"><label for="bitrateInput">目标视频比特率（kbps）</label><input id="bitrateInput" type="number" min="1" max="50000" step="1" value="2000"></div>
+    <div class="control"><label for="outputName">输出文件名</label><input id="outputName" type="text" value="compressed.mp4"></div>
+    <div class="actions"><button id="startButton" class="button" disabled>开始压缩</button><button id="cancelButton" class="button secondary" disabled>取消</button><button id="resetButton" class="button secondary">重置</button></div>
+    <div class="progress-wrap"><progress id="progressBar" value="0" max="1" hidden></progress></div>
+    <div id="launchNote" class="note">当前版本使用本地 FFmpeg WebAssembly。标准 MP4 metadata 会随输出复制；特殊 uuid 或自定义 box 中的 JSON 需要用真实样本额外核验。</div>
+  </section>
+  <aside class="panel preview-panel" aria-labelledby="info-title"><h2 id="info-title">视频信息</h2><div class="info"><div class="stat"><small>文件</small><b id="fileName">未选择</b></div><div class="stat"><small>大小</small><b id="fileSize">-</b></div><div class="stat"><small>尺寸</small><b id="videoSize">-</b></div><div class="stat"><small>原始码率</small><b id="sourceBitrate">-</b></div></div><div id="compressedInfo" class="summary" hidden><strong>压缩后</strong><div class="info"><div class="stat"><small>大小</small><b id="compressedSize">-</b></div><div class="stat"><small>码率</small><b id="compressedBitrate">-</b></div></div></div><div class="summary"><strong>处理方式</strong><p>视频使用 H.264 重新编码，音频流直接复制，原始文件不会被覆盖。</p></div><div id="statusText" class="status" aria-live="polite">正在等待选择视频</div><a id="downloadLink" class="button download-button" hidden></a></aside>
+  </div></div></main>
+<script src="assets/ffmpeg/ffmpeg.js"></script>
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const els = {fileInput:$('fileInput'),drop:$('dropZone'),name:$('fileName'),size:$('fileSize'),dimensions:$('videoSize'),sourceBitrate:$('sourceBitrate'),compressedInfo:$('compressedInfo'),compressedSize:$('compressedSize'),compressedBitrate:$('compressedBitrate'),bitrate:$('bitrateInput'),output:$('outputName'),start:$('startButton'),cancel:$('cancelButton'),reset:$('resetButton'),progress:$('progressBar'),status:$('statusText'),download:$('downloadLink')};
+  let selectedFile = null, ffmpeg = null, loadPromise = null, abortController = null, downloadUrl = null, probeLog = '';
+
+  const formatBytes = bytes => bytes < 1024 * 1024 ? (bytes / 1024).toFixed(1) + ' KB' : (bytes / 1024 / 1024).toFixed(2) + ' MB';
+  const setStatus = (text, kind = '') => { els.status.textContent = text; els.status.className = 'status ' + kind; };
+  const safeName = name => name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').replace(/[. ]+$/g, '').trim() || 'compressed.mp4';
+  const inputName = 'input.mp4', outputName = 'output.mp4';
+
+  function selectFile(file) {
+    if (!file || (!/video\/mp4/i.test(file.type) && !/\.mp4$/i.test(file.name))) { setStatus('请选择 MP4 文件', 'error'); return; }
+    selectedFile = file; els.name.textContent = file.name; els.size.textContent = formatBytes(file.size); els.dimensions.textContent = '-'; els.sourceBitrate.textContent = '读取中'; els.compressedInfo.hidden = true;
+    els.output.value = safeName(file.name.replace(/\.mp4$/i, '') + '_compressed.mp4'); els.start.disabled = true; els.download.hidden = true;
+    setStatus('准备加载本地 FFmpeg...', ''); probe(file).catch(err => { els.sourceBitrate.textContent = '-'; setStatus('读取视频信息失败：' + err.message, 'error'); });
+  }
+
+  async function getFFmpeg() {
+    if (location.protocol === 'file:') throw new Error('请通过工具网站或本地 HTTP 服务打开，直接双击 HTML 会被浏览器禁止启动 Worker');
+    if (ffmpeg && ffmpeg.loaded) return ffmpeg;
+    if (loadPromise) return loadPromise;
+    if (!window.FFmpegWASM || !window.FFmpegWASM.FFmpeg) throw new Error('FFmpeg 浏览器运行库未加载');
+    ffmpeg = new window.FFmpegWASM.FFmpeg();
+    ffmpeg.on('log', ({message}) => { probeLog += message + '\n'; });
+    ffmpeg.on('progress', ({progress}) => { if (!els.progress.hidden) els.progress.value = Math.max(0, Math.min(1, progress)); });
+    loadPromise = ffmpeg.load({ coreURL: new URL('assets/ffmpeg/ffmpeg-core.js', document.baseURI).href, wasmURL: new URL('assets/ffmpeg/ffmpeg-core.wasm', document.baseURI).href });
+    try { await loadPromise; setStatus('FFmpeg 已就绪', 'success'); return ffmpeg; } finally { loadPromise = null; }
+  }
+
+  function parseProbe(log) {
+    const size = log.match(/Video:.*?(\d{2,6})x(\d{2,6})/i);
+    const duration = log.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/i);
+    const bitrate = log.match(/bitrate:\s*(\d+)\s*kb\/s/i) || log.match(/Video:.*?\b(\d+)\s*kb\/s/i);
+    return { width: size ? Number(size[1]) : 0, height: size ? Number(size[2]) : 0, duration: duration ? Number(duration[1])*3600 + Number(duration[2])*60 + Number(duration[3]) : 0, bitrate: bitrate ? Number(bitrate[1]) : null };
+  }
+
+  function parseMergeinfo(log) {
+    const match = log.match(/mergeinfo\s*:\s*(yyeffectmp4json\[\[.*?\]\]yyeffectmp4json)/is);
+    return match ? match[1].replace(/\s+/g, '') : '';
+  }
+
+  async function probe(file) {
+    const engine = await getFFmpeg(); probeLog = ''; await engine.writeFile(inputName, new Uint8Array(await file.arrayBuffer()));
+    await engine.exec(['-hide_banner', '-i', inputName]);
+    const info = parseProbe(probeLog); els.dimensions.textContent = info.width && info.height ? info.width + ' × ' + info.height : '未知'; els.sourceBitrate.textContent = info.bitrate ? info.bitrate + ' kbps' : '未知';
+    selectedFile.probe = info; selectedFile.mergeinfo = parseMergeinfo(probeLog); els.start.disabled = false; setStatus(selectedFile.mergeinfo ? '视频已就绪，已识别特效 JSON 信息' : '视频已就绪，可以开始压缩', 'success'); await engine.deleteFile(inputName).catch(() => {});
+  }
+
+  async function compress() {
+    const target = Number(els.bitrate.value); if (!selectedFile || !Number.isFinite(target) || target < 1 || target > 50000) { setStatus('请输入 1-50000 之间的目标比特率', 'error'); return; }
+    if (selectedFile.probe && selectedFile.probe.bitrate && selectedFile.probe.bitrate <= target) { setStatus('原视频比特率已经不高于目标值，未执行重新编码', ''); return; }
+    const engine = await getFFmpeg(); abortController = new AbortController(); els.start.disabled = true; els.cancel.disabled = false; els.progress.hidden = false; els.progress.value = 0; els.download.hidden = true; setStatus('正在压缩视频...', '');
+    try {
+      await engine.writeFile(inputName, new Uint8Array(await selectedFile.arrayBuffer()), { signal: abortController.signal });
+      const args = ['-i', inputName, '-map', '0:v:0', '-map', '0:a?', '-map_metadata', '0', '-movflags', '+faststart+use_metadata_tags']; if (selectedFile.mergeinfo) args.push('-metadata', 'mergeinfo=' + selectedFile.mergeinfo); args.push('-pix_fmt', 'yuv420p', '-c:v', 'libx264', '-b:v', target + 'k', '-c:a', 'copy', '-f', 'mp4', '-y', outputName); const exitCode = await engine.exec(args, -1, { signal: abortController.signal });
+      if (exitCode !== 0) throw new Error('FFmpeg 返回错误码 ' + exitCode + '：' + probeLog.split('\n').slice(-4).join(' '));
+      const data = await engine.readFile(outputName); const bytes = data instanceof Uint8Array ? data : new Uint8Array(data); const signature = new TextDecoder().decode(bytes.slice(4, 8)); if (bytes.length < 12 || signature !== 'ftyp') throw new Error('输出文件不是有效的 MP4（文件头校验失败）'); const blob = new Blob([bytes.slice().buffer], {type:'video/mp4'}); if (downloadUrl) URL.revokeObjectURL(downloadUrl); downloadUrl = URL.createObjectURL(blob); els.download.href = downloadUrl; els.download.download = els.output.value.trim() || 'compressed.mp4'; els.download.textContent = '下载压缩视频'; els.download.hidden = false; const duration = selectedFile.probe?.duration || 0; const averageBitrate = duration > 0 ? Math.round((blob.size * 8) / duration / 1000) : 0; els.compressedSize.textContent = formatBytes(blob.size); els.compressedBitrate.textContent = averageBitrate ? averageBitrate + ' kbps' : '未知'; els.compressedInfo.hidden = false; els.progress.value = 1; setStatus('压缩完成，点击下载结果', 'success');
+    } catch (err) { if (err.name === 'AbortError' || /aborted|terminated/i.test(err.message)) setStatus('已取消压缩', ''); else setStatus('压缩失败：' + err.message, 'error'); }
+    finally { await engine.deleteFile(inputName).catch(() => {}); await engine.deleteFile(outputName).catch(() => {}); els.start.disabled = !selectedFile; els.cancel.disabled = true; abortController = null; }
+  }
+
+  els.drop.addEventListener('click', () => els.fileInput.click()); els.drop.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') els.fileInput.click(); });
+  els.fileInput.addEventListener('change', e => selectFile(e.target.files[0]));
+  ['dragenter','dragover'].forEach(type => els.drop.addEventListener(type, e => { e.preventDefault(); els.drop.classList.add('drag'); }));
+  ['dragleave','drop'].forEach(type => els.drop.addEventListener(type, e => { e.preventDefault(); els.drop.classList.remove('drag'); }));
+  els.drop.addEventListener('drop', e => selectFile(e.dataTransfer.files[0])); els.start.addEventListener('click', () => compress().catch(err => setStatus('处理失败：' + err.message, 'error'))); els.cancel.addEventListener('click', () => { if (abortController) abortController.abort(); if (ffmpeg) ffmpeg.terminate(); ffmpeg = null; loadPromise = null; });
+  els.reset.addEventListener('click', () => { selectedFile = null; els.fileInput.value = ''; els.name.textContent = '未选择'; els.size.textContent = '-'; els.dimensions.textContent = '-'; els.sourceBitrate.textContent = '-'; els.compressedInfo.hidden = true; els.start.disabled = true; els.cancel.disabled = true; els.progress.hidden = true; els.download.hidden = true; setStatus('正在等待选择视频'); });
+  if (location.protocol === 'file:') { setStatus('请通过工具网站或本地 HTTP 服务打开本页，浏览器不允许 file:// 页面启动视频处理 Worker', 'error'); }
+  window.addEventListener('beforeunload', () => { if (downloadUrl) URL.revokeObjectURL(downloadUrl); if (ffmpeg) ffmpeg.terminate(); });
+})();
+</script>
+</body>
+</html>

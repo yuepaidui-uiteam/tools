@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Compress and convert JPG, PNG, and WebP files locally in your browser. Nothing is uploaded.">
+  <title>图片压缩工具</title>
+  <link rel="stylesheet" href="assets/tools/tools.css">
+  <style>
+    .tool-main { padding:48px 0 80px; }.tool-heading { margin-bottom:28px; max-width:720px; }.tool-heading h1 { font-size:38px; letter-spacing:0; margin:8px 0; }.tool-heading p { color:var(--muted); margin:0; }
+    .workspace { display:grid; gap:20px; grid-template-columns:300px minmax(0,1fr); }.settings, .queue { background:var(--panel); border:1px solid var(--line); border-radius:8px; box-shadow:var(--shadow); padding:22px; }
+    .settings h2, .queue h2 { font-size:18px; margin:0 0 18px; }.control { display:grid; gap:7px; margin-bottom:16px; }.control label { font-size:14px; font-weight:700; }.control select, .control input { background:var(--bg); border:1px solid var(--line); border-radius:6px; color:var(--text); font:inherit; padding:9px 10px; width:100%; }
+    .color-field { align-items:center; background:var(--bg); border:1px solid var(--line); border-radius:6px; display:grid; gap:9px; grid-template-columns:28px minmax(0,1fr); padding:6px 9px; }.control .color-field input { border:0; border-radius:0; min-width:0; padding:0; }.color-field input[type="color"] { appearance:none; background:transparent; cursor:pointer; height:28px; width:28px; }.color-field input[type="color"]::-webkit-color-swatch-wrapper { padding:0; }.color-field input[type="color"]::-webkit-color-swatch { border:1px solid #ffffff40; border-radius:4px; }.color-field input[type="text"] { background:transparent; font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:14px; text-transform:uppercase; }
+    .hint { color:var(--muted); font-size:12px; margin:0; }.custom-quality, .resize-value, .jpg-options { display:none; }.custom-quality.is-visible, .resize-value.is-visible, .jpg-options.is-visible { display:grid; }
+    .dropzone { align-items:center; border:2px dashed var(--brand); border-radius:8px; cursor:pointer; display:flex; flex-direction:column; gap:8px; justify-content:center; min-height:190px; padding:22px; text-align:center; transition:background .15s ease; }.dropzone.is-dragging { background:color-mix(in srgb,var(--brand) 10%,transparent); }.dropzone strong { font-size:17px; }.dropzone span { color:var(--muted); font-size:14px; }.dropzone .button { min-width:112px; }
+    .actions { align-items:center; display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }.actions .button { min-width:112px; }.actions .hint { flex-basis:100%; }.button { border:0; cursor:pointer; margin:0; }.button.secondary { background:var(--surface); color:var(--text); }.button.outline { background:transparent; border:1px solid var(--line); color:var(--text); }.button:disabled { cursor:not-allowed; opacity:.55; }
+    .file-list { display:grid; gap:10px; list-style:none; margin:18px 0 0; padding:0; }.file-item { align-items:center; border:1px solid var(--line); border-radius:7px; display:grid; gap:10px; grid-template-columns:minmax(0,1fr) auto auto; padding:12px; }.file-name { font-size:14px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }.file-meta, .file-status { color:var(--muted); font-size:12px; }.file-status[data-state="error"] { color:#c53b4b; }.file-status[data-state="ready"] { color:#23804a; }.file-actions { align-items:center; display:flex; gap:2px; }.icon-button { align-items:center; background:transparent; border:0; border-radius:5px; color:var(--muted); cursor:pointer; display:inline-flex; height:32px; justify-content:center; padding:0; width:32px; }.icon-button:hover { background:var(--surface); color:var(--text); }.icon-button svg { fill:none; height:17px; stroke:currentColor; stroke-linecap:round; stroke-linejoin:round; stroke-width:2; width:17px; }
+    @media (max-width:760px) { .workspace, .settings, .queue { max-width:calc(100vw - 36px); min-width:0; width:100%; }.workspace { grid-template-columns:minmax(0,1fr); overflow:hidden; }.tool-main { padding-top:32px; }.tool-heading h1 { font-size:32px; }.control select, .control input, .actions .button, .dropzone { max-width:100%; min-width:0; }.file-item { grid-template-columns:minmax(0,1fr); }.file-status { grid-column:1 / -1; } }
+  </style>
+</head>
+<body>
+  <main class="tool-main"><div class="wrap"><header class="tool-heading"><div class="eyebrow" data-i18n="tools_eyebrow">免费图片工具</div><h1 data-i18n="compress_title">图片批量压缩与格式转换</h1><p data-i18n="compress_description">压缩 JPG、PNG 和 WebP 文件，同时保留画质控制。</p></header>
+    <div class="workspace"><aside class="settings" aria-label="压缩设置"><h2 data-i18n="settings">设置</h2>
+      <div class="control"><label for="outputFormat" data-i18n="output_format">输出格式</label><select id="outputFormat"><option value="jpg">JPG</option><option value="png">PNG</option><option value="webp">WebP</option></select></div>
+      <div class="control"><label for="qualityPreset" data-i18n="quality">质量</label><select id="qualityPreset"><option value="high" data-i18n="quality_high">高质量（90%）</option><option value="balanced" selected data-i18n="quality_balanced">均衡（78%）</option><option value="small" data-i18n="quality_small">更小文件（62%）</option><option value="custom" data-i18n="quality_custom">自定义</option></select></div>
+      <div class="control custom-quality"><label for="customQuality" data-i18n="custom_quality">自定义质量</label><input id="customQuality" type="range" min="10" max="100" value="78"><p class="hint"><output id="qualityValue">78</output>%</p></div>
+      <div class="control"><label for="resizeMode" data-i18n="resize">调整尺寸</label><select id="resizeMode"><option value="original" data-i18n="keep_original_size">保持原始尺寸</option><option value="percent" data-i18n="resize_percent">按百分比缩放</option><option value="width" data-i18n="resize_width">指定宽度</option><option value="height" data-i18n="resize_height">指定高度</option></select></div>
+      <div class="control resize-value"><label for="resizeValue" data-i18n="resize_value">尺寸数值</label><input id="resizeValue" type="number" min="1" value="80"></div>
+      <div class="control jpg-options"><label for="jpgBackgroundHex" data-i18n="jpg_background">JPG 背景色</label><div class="color-field"><input id="jpgBackground" type="color" value="#ffffff" aria-label="选择 JPG 背景色" data-i18n-aria-label="jpg_background_picker"><input id="jpgBackgroundHex" type="text" value="FFFFFF" maxlength="7" autocomplete="off" spellcheck="false" aria-label="JPG 背景色值" data-i18n-aria-label="jpg_background_hex"></div></div>
+    </aside>
+    <section class="queue" aria-labelledby="queue-title"><h2 id="queue-title" data-i18n="image_queue">待处理图片</h2><input id="fileInput" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden>
+      <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="选择或拖入图片"><strong data-i18n="drop_files">拖入图片到这里</strong><span data-i18n="upload_limits">一次最多 30 张，每张不超过 25 MB，支持 JPG、PNG 和 WebP。</span><button id="chooseFiles" class="button" type="button" data-i18n="choose_image">选择图片</button></div>
+      <div class="actions"><button id="clearAll" class="button outline" type="button" disabled data-i18n="clear_list">清除列表</button><button id="processAll" class="button" type="button" disabled data-i18n="start_compress">开始压缩</button><button id="downloadZip" class="button" type="button" disabled data-i18n="zip_download">打包下载</button><span id="queueSummary" class="hint" aria-live="polite" data-i18n="no_images_selected">尚未选择图片</span></div>
+      <ul id="fileList" class="file-list" aria-live="polite"></ul>
+    </section>
+    </div></div>
+  </main>
+  <script src="assets/tools/vendor/pica.min.js"></script>
+  <script src="assets/tools/vendor/pako.min.js"></script>
+  <script src="assets/tools/vendor/upng.min.js"></script>
+  <script src="assets/tools/vendor/jszip.min.js"></script>
+  <script type="module" src="assets/tools/image-compress.mjs"></script>
+</body>
+</html>

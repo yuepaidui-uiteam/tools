@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="免费的本地图片工具，完全在浏览器中运行。">
+  <title>免费图片工具</title>
+  <link rel="stylesheet" href="assets/tools/tools.css">
+</head>
+<body>
+  <main>
+    <header class="hero"><div class="wrap"><div class="eyebrow" data-i18n="tools_eyebrow">免费图片工具</div><h1 data-i18n="tools_title">小小图片任务，本地就能完成。</h1><p class="lead" data-i18n="tools_lead">为日常图片处理打造的快速浏览器工具。文件始终留在这台设备上。</p></div></header>
+    <section class="tools-section"><div class="wrap tools-grid">
+      <article class="tool-card"><div class="tool-icon" aria-hidden="true">%</div><h2 data-i18n="compress_title">图片批量压缩与格式转换</h2><p data-i18n="compress_description">压缩 JPG、PNG 和 WebP 文件，同时保留画质控制。</p><a class="button" href="image-compress.html" data-i18n="compress_action">压缩图片</a></article>
+      <article class="tool-card"><div class="tool-icon" aria-hidden="true">#</div><h2 data-i18n="nine_patch_title">.9 图制作工具</h2><p data-i18n="nine_patch_description">通过可视化编辑器创建可拉伸的 Android nine-patch PNG。</p><a class="button" href="nine-patch.html" data-i18n="nine_patch_action">制作 .9 图</a></article>
+      <article class="tool-card"><div class="tool-icon" aria-hidden="true">✦</div><h2>特效图集预览工具</h2><p>预览精灵表动画，并在不同尺寸之间进行双向转换。</p><a class="button" href="特效图集预览工具-双向转换V3.html">打开图集预览</a></article>
+      <article class="tool-card"><div class="tool-icon" aria-hidden="true">▦</div><h2>Android 图标规范全景预览</h2><p>快速查看 Android 图标在不同规范和遮罩下的显示效果。</p><a class="button" href="Android 图标规范全景预览.html">打开图标预览</a></article>
+      <article class="tool-card"><div class="tool-icon" aria-hidden="true">↘</div><h2>视频比特率压缩工具</h2><p>在浏览器本地压缩 MP4，保留特效资源中的 JSON 信息，不需要安装 FFmpeg。</p><a class="button" href="video-bitrate-compressor.html">压缩视频</a></article>
+      <article class="tool-card"><div class="tool-icon" aria-hidden="true">✦</div><h2>图片去背工具</h2><p>拾取纯色背景，或使用去黑抠图模式处理外发光、烟雾和光效素材。</p><a class="button" href="color-unmult.html">打开图片去背</a></article>
+    </div></section>
+  </main>
+  <script type="module">import { initToolShell } from './assets/tools/common.mjs'; initToolShell();</script>
+</body>
+</html>

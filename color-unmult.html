@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>颜色去背工具</title>
+  <style>
+    :root { --bg:#fff; --surface:#f6f4ff; --panel:#fff; --text:#131a2e; --muted:#5b6178; --line:#e9e6f4; --brand:#6a34e8; --shadow:0 12px 44px rgba(60,30,140,.12); }
+    @media (prefers-color-scheme:dark) { :root { --bg:#080b16; --surface:#10152a; --panel:#141a30; --text:#f2f2fb; --muted:#a2a8c2; --line:#262d47; --brand:#a77bff; --shadow:0 12px 44px rgba(0,0,0,.5); } }
+    * { box-sizing:border-box; } body { background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,"PingFang SC","Microsoft YaHei",Arial,sans-serif; line-height:1.5; margin:0; }
+    .wrap { margin:0 auto; max-width:1080px; padding:0 24px; width:100%; }.tool-main { padding:42px 0 80px; }.tool-heading { margin-bottom:26px; max-width:760px; }.eyebrow { color:var(--brand); font-size:13px; font-weight:750; letter-spacing:.04em; text-transform:uppercase; }.tool-heading h1 { font-size:38px; margin:8px 0; }.tool-heading p,.hint,.status { color:var(--muted); margin:0; }
+    .workspace { align-items:stretch; display:grid; gap:18px; grid-template-columns:minmax(0,1fr) 340px; }.panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; box-shadow:var(--shadow); padding:20px; }.panel h2 { font-size:18px; margin:0 0 16px; }.file-input { display:none; }.canvas-frame { align-items:center; background:repeating-conic-gradient(#eef0f7 0 25%,#fff 0 50%) 50% / 22px 22px; border-radius:8px; display:grid; min-height:430px; overflow:hidden; padding:26px; place-items:center; position:relative; }.canvas-frame canvas { display:block; max-height:520px; max-width:100%; object-fit:contain; }.empty-canvas { align-items:center; background:color-mix(in srgb,var(--brand) 9%,var(--surface)); border:2px dashed color-mix(in srgb,var(--brand) 82%,var(--line)); border-radius:8px; color:var(--muted); display:flex; flex-direction:column; gap:10px; justify-content:center; min-height:210px; padding:22px; text-align:center; width:min(100%,390px); }.empty-canvas strong { color:var(--text); font-size:17px; }.button { align-items:center; background:linear-gradient(135deg,#8b2fe6,#2f6bff); border:0; border-radius:7px; color:#fff; cursor:pointer; display:inline-flex; font:inherit; font-weight:750; justify-content:center; padding:11px 16px; }.button.secondary { background:var(--surface); color:var(--text); }.button:disabled { cursor:not-allowed; opacity:.5; }.canvas-actions { align-items:center; display:flex; flex-wrap:wrap; gap:12px; justify-content:space-between; margin-top:14px; }.control { display:grid; gap:7px; margin-bottom:15px; }.control label { font-size:13px; font-weight:750; }.control input[type="range"] { accent-color:var(--brand); padding:0; width:100%; }.control input[type="number"] { background:var(--bg); border:1px solid var(--line); border-radius:6px; color:var(--text); font:inherit; padding:9px; width:100%; }.range-line { align-items:center; display:grid; gap:10px; grid-template-columns:1fr 56px; }.range-value { color:var(--brand); font-size:13px; font-weight:800; text-align:right; }.color-row { align-items:center; display:flex; gap:10px; }.color-picker { border:1px solid var(--line); border-radius:6px; cursor:pointer; height:40px; padding:3px; width:54px; }.swatch { border:1px solid var(--line); border-radius:6px; flex:1; height:40px; }.tips { border-top:1px solid var(--line); margin-top:18px; padding-top:16px; }.status { min-height:42px; margin-top:14px; }.status.error { color:#bd3042; }.preview-frame { min-height:245px; padding:12px; }.preview-frame canvas { box-shadow:0 2px 12px rgba(0,0,0,.16); max-height:270px; }.preview-meta { color:var(--muted); font-size:12px; margin-top:10px; text-align:center; }.download { margin-top:6px; width:100%; }
+    @media (max-width:1000px) { .workspace { grid-template-columns:1fr; }.preview-frame { min-height:220px; } }
+    @media (max-width:680px) { .wrap { max-width:100vw; padding:0 18px; }.tool-main { padding-top:30px; }.tool-heading h1 { font-size:32px; }.panel { padding:16px; }.canvas-frame { min-height:320px; padding:18px; }.canvas-actions { align-items:stretch; flex-direction:column; }.canvas-actions .button { width:100%; } }
+    .canvas-frame { --checker-a:#2a2f45; --checker-b:#1c2135; background:repeating-conic-gradient(var(--checker-a) 0 25%,var(--checker-b) 0 50%) 50% / 22px 22px; }
+    .canvas-frame[data-checker="light"] { --checker-a:#eef0f7; --checker-b:#fff; }
+    .canvas-frame[data-checker="neutral"] { --checker-a:#b9bfce; --checker-b:#8f97aa; }
+    .canvas-frame[data-checker="dark"] { --checker-a:#2a2f45; --checker-b:#1c2135; }
+    .canvas-frame[data-checker="warm"] { --checker-a:#b8afa5; --checker-b:#8f867d; }
+    .control select { background:var(--bg); border:1px solid var(--line); border-radius:6px; color:var(--text); font:inherit; padding:9px; width:100%; }
+    .empty-canvas[hidden] { display:none; }
+    .canvas-frame canvas[hidden] { display:none; }
+    .canvas-actions, .preview-frame, .preview-meta { display:none; }
+    .color-help { color:var(--muted); font-size:13px; margin:8px 0 0; }
+    .checker-control { align-items:center; background:transparent; border:0; display:flex; gap:8px; justify-content:flex-end; margin:0; padding:0; position:static; width:max-content; }
+    .checker-control label { display:none; }
+    .checker-control select { min-width:138px; width:auto; }
+    .checker-control .hint { display:none; }
+    .mode-row { align-items:center; display:flex; justify-content:space-between; margin-bottom:10px; }
+    .mode-tabs { display:flex; gap:6px; margin:0; }
+    .mode-tab { background:var(--surface); border:1px solid var(--line); border-radius:6px; color:var(--muted); cursor:pointer; font:inherit; font-size:14px; font-weight:750; padding:8px 16px; }
+    .mode-tab[aria-selected="true"] { background:var(--brand); border-color:var(--brand); color:#fff; }
+    .mode-tab:focus-visible { outline:2px solid var(--brand-2); outline-offset:2px; }
+    .parameter-disabled { opacity:.45; }
+    .workspace > section > h2 { display:none; }
+    .empty-canvas { align-self:center; justify-self:center; }
+    .status { display:none; }
+  </style>
+</head>
+<body>
+  <main class="tool-main"><div class="wrap">
+    <header class="tool-heading"><div class="eyebrow">免费图片工具</div><h1>颜色去背工具</h1><p>拾取任意纯色或接近纯色的背景，自动转换为透明区域。文件始终只在本地浏览器中处理。</p></header>
+    <div class="workspace">
+      <section class="panel">
+        <h2>原图与取色</h2>
+        <input id="fileInput" class="file-input" type="file" accept="image/png,image/jpeg,image/webp">
+        <div id="canvasFrame" class="canvas-frame"><label id="emptyState" class="empty-canvas" for="fileInput"><strong>拖入图片到这里</strong><span>或从本机选择 PNG / JPG / WebP</span><span class="button">选择图片</span></label><canvas id="mainCanvas" hidden></canvas></div>
+        <div class="canvas-actions"><button id="chooseButton" class="button secondary" type="button">重新选择图片</button><span class="hint">点击画布可拾取背景颜色</span></div>
+        <p id="status" class="status" aria-live="polite">请先加载图片，然后点击背景区域取色。</p>
+      </section>
+      <aside class="panel">
+        <h2>去背参数</h2>
+        <div class="control"><label for="colorPicker">背景颜色</label><div class="color-row"><input id="colorPicker" class="color-picker" type="color" value="#000000" aria-label="背景颜色"><span id="swatch" class="swatch"></span></div></div>
+        <div class="control"><label for="tolerance">颜色容差</label><div class="range-line"><input id="tolerance" type="range" min="0" max="180" value="48"><span id="toleranceValue" class="range-value">48</span></div><span class="hint">数值越大，去除的相近颜色越多</span></div>
+        <div class="control"><label for="feather">边缘羽化</label><div class="range-line"><input id="feather" type="range" min="0" max="80" value="12"><span id="featherValue" class="range-value">12</span></div><span class="hint">柔化主体边缘，减少色边和锯齿</span></div>
+        <div class="control"><label for="strength">去色强度</label><div class="range-line"><input id="strength" type="range" min="0" max="100" value="100"><span id="strengthValue" class="range-value">100%</span></div></div>
+        <div class="preview-frame canvas-frame"><canvas id="previewCanvas" width="320" height="220"></canvas></div><div id="previewMeta" class="preview-meta">尚未加载图片</div>
+        <button id="downloadButton" class="button download" type="button" disabled>下载透明 PNG</button>
+        <div class="tips"><p class="hint">提示：如果主体中也有与背景相近的颜色，请降低容差，或换一个更接近背景中心的取色点。</p></div>
+      </aside>
+    </div>
+  </div></main>
+  <script>
+    const $ = id => document.getElementById(id); document.title='图片去背工具'; document.querySelector('.tool-heading h1').textContent='图片去背工具';
+    const fileInput=$('fileInput'), chooseButton=$('chooseButton'), emptyState=$('emptyState'), mainCanvas=$('mainCanvas'), previewCanvas=$('previewCanvas'), status=$('status'), colorPicker=$('colorPicker'), swatch=$('swatch');
+    const ctx=mainCanvas.getContext('2d',{willReadFrequently:true}), previewCtx=previewCanvas.getContext('2d'); let imageData=null, originalName='image';
+    const canvasFrames=document.querySelectorAll('.canvas-frame');
+    const checkerControl=document.createElement('div'); checkerControl.className='control checker-control'; checkerControl.innerHTML='<label for="checkerSelect">背景类型选择</label><select id="checkerSelect"><option value="dark" selected>深色棋盘</option><option value="neutral">中性棋盘</option><option value="light">浅色棋盘</option><option value="warm">暖色棋盘</option></select><span class="hint">选择与当前图片或界面更匹配的背景，透明区域仍会保持棋盘格显示。</span>';
+    document.querySelector('.workspace > section').insertBefore(checkerControl, document.querySelector('#canvasFrame'));
+    $('checkerSelect').addEventListener('change',e=>canvasFrames.forEach(frame=>frame.dataset.checker=e.target.value)); canvasFrames.forEach(frame=>frame.dataset.checker='dark');
+    const colorHelp=document.createElement('p'); colorHelp.className='color-help'; colorHelp.textContent='点击左侧图片中的背景区域，即可自动拾取颜色。'; $('colorPicker').closest('.color-row').after(colorHelp);
+    let mode='key';
+    const modeTabs=document.createElement('div'); modeTabs.className='mode-tabs'; modeTabs.setAttribute('role','tablist'); modeTabs.innerHTML='<button class="mode-tab" type="button" role="tab" aria-selected="true" data-mode="key">常规抠图</button><button class="mode-tab" type="button" role="tab" aria-selected="false" data-mode="unmult">去黑抠图</button>';
+    document.querySelector('.workspace > section').insertBefore(modeTabs, checkerControl);
+    const modeRow=document.createElement('div'); modeRow.className='mode-row'; modeTabs.replaceWith(modeRow); modeRow.append(modeTabs,checkerControl);
+    const parameterControls=[colorPicker,$('tolerance'),$('feather'),$('strength'),$('checkerSelect')];
+    function setMode(next){mode=next; modeTabs.querySelectorAll('.mode-tab').forEach(tab=>tab.setAttribute('aria-selected',String(tab.dataset.mode===mode))); parameterControls.forEach(control=>{control.disabled=mode==='unmult'; control.closest('.control, .color-row')?.classList.toggle('parameter-disabled',mode==='unmult')}); checkerControl.classList.toggle('parameter-disabled',mode==='unmult'); if(mode==='unmult'){renderUnmult();return;} render();}
+    modeTabs.addEventListener('click',e=>{const tab=e.target.closest('.mode-tab'); if(tab)setMode(tab.dataset.mode)});
+    const controls=[['tolerance','toleranceValue',''],['feather','featherValue',''],['strength','strengthValue','%']];
+    function renderUnmult(){if(!imageData)return; const src=imageData.data, out=new ImageData(new Uint8ClampedArray(src),imageData.width,imageData.height), d=out.data; for(let i=0;i<d.length;i+=4){const red=d[i],green=d[i+1],blue=d[i+2],alpha=Math.max(red,green,blue); if(alpha===0){d[i+3]=0;continue;} d[i]=Math.min(255,Math.round(red*255/alpha)); d[i+1]=Math.min(255,Math.round(green*255/alpha)); d[i+2]=Math.min(255,Math.round(blue*255/alpha)); d[i+3]=alpha;} ctx.putImageData(out,0,0); $('downloadButton').disabled=false; }
+    function renderCurrent(){if(mode==='unmult')renderUnmult();else render();}
+    function hexToRgb(hex){return [parseInt(hex.slice(1,3),16),parseInt(hex.slice(3,5),16),parseInt(hex.slice(5,7),16)]}
+    function updateLabels(){controls.forEach(([a,b,s])=>$(b).textContent=$(a).value+s); swatch.style.background=colorPicker.value; if(imageData) render();}
+    function setStatus(text,error=false){status.textContent=text; status.className='status'+(error?' error':'')}
+    function fitCanvas(canvas,w,h,maxW,maxH){const scale=Math.min(maxW/w,maxH/h,1);canvas.style.width=Math.round(w*scale)+'px';canvas.style.height=Math.round(h*scale)+'px'}
+    function render(){if(!imageData)return; if(mode==='unmult'){renderUnmult();return;} const src=imageData.data, out=new ImageData(new Uint8ClampedArray(src),imageData.width,imageData.height), d=out.data, [r,g,b]=hexToRgb(colorPicker.value), tol=Number($('tolerance').value), feather=Math.max(1,Number($('feather').value)), strength=Number($('strength').value)/100; for(let i=0;i<d.length;i+=4){const dist=Math.hypot(d[i]-r,d[i+1]-g,d[i+2]-b); let alpha=dist<=tol?0:dist<tol+feather?((dist-tol)/feather)*255:255; d[i+3]=Math.round(d[i+3]*(1-strength+strength*alpha/255));} ctx.putImageData(out,0,0); previewCanvas.width=Math.min(640,out.width); previewCanvas.height=Math.round(out.height*(previewCanvas.width/out.width)); previewCtx.clearRect(0,0,previewCanvas.width,previewCanvas.height); previewCtx.drawImage(mainCanvas,0,0,previewCanvas.width,previewCanvas.height); $('previewMeta').textContent=out.width+' × '+out.height+' px · 实时预览'; $('downloadButton').disabled=false; }
+    function loadFile(file){if(!file)return; if(!file.type.startsWith('image/')){setStatus('请选择 PNG、JPG 或 WebP 图片。',true);return;} const img=new Image(); img.onload=()=>{mainCanvas.width=img.naturalWidth;mainCanvas.height=img.naturalHeight;ctx.drawImage(img,0,0);imageData=ctx.getImageData(0,0,img.naturalWidth,img.naturalHeight);emptyState.hidden=true;mainCanvas.hidden=false;fitCanvas(mainCanvas,img.naturalWidth,img.naturalHeight,700,560);originalName=file.name.replace(/\.[^.]+$/,'')||'image';setStatus('已加载图片。点击原图背景区域即可拾取颜色。');render();URL.revokeObjectURL(img.src)};img.src=URL.createObjectURL(file)}
+    fileInput.addEventListener('change',e=>{loadFile(e.target.files[0]); if(mode==='unmult') queueMicrotask(renderUnmult);}); chooseButton.addEventListener('click',()=>fileInput.click());
+    ['dragover','drop'].forEach(type=>document.addEventListener(type,e=>e.preventDefault())); $('canvasFrame').addEventListener('drop',e=>{loadFile(e.dataTransfer.files[0]); if(mode==='unmult') queueMicrotask(renderUnmult);});
+    mainCanvas.addEventListener('click',e=>{if(!imageData)return; const rect=mainCanvas.getBoundingClientRect(),x=Math.min(imageData.width-1,Math.max(0,Math.floor((e.clientX-rect.left)/rect.width*imageData.width))),y=Math.min(imageData.height-1,Math.max(0,Math.floor((e.clientY-rect.top)/rect.height*imageData.height))),p=ctx.getImageData(x,y,1,1).data; colorPicker.value='#'+[p[0],p[1],p[2]].map(v=>v.toString(16).padStart(2,'0')).join(''); updateLabels(); setStatus('已拾取背景颜色 '+colorPicker.value.toUpperCase()+'，可以继续调整容差和羽化。')});
+    controls.forEach(([a])=>$(a).addEventListener('input',updateLabels)); colorPicker.addEventListener('input',updateLabels); updateLabels();
+    $('downloadButton').addEventListener('click',()=>{if(!imageData)return;const a=document.createElement('a');a.download=originalName+'-transparent.png';a.href=mainCanvas.toDataURL('image/png');a.click()});
+  </script>
+</body>
+</html>
