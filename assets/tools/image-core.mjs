@@ -59,7 +59,7 @@ export function outputFileName(name, format, usedNames = new Set()) {
   const safeName = String(name || 'image').trim() || 'image';
   const stem = safeName.replace(/\.[^.]+$/, '') || 'image';
   const extension = normalizeFormat(format);
-  const base = `${stem}-compressed`;
+  const base = stem;
   let candidate = `${base}.${extension}`;
   let suffix = 2;
 
