@@ -2,7 +2,7 @@ import { initToolShell, downloadBlob } from './common.mjs';
 import { LANGS, formatBytes, t } from './i18n.mjs';
 import { MAX_FILES, buildOutputPlan, percentSaved, validateImageFile } from './image-core.mjs';
 
-const QUALITY_PRESETS = { high: 0.9, balanced: 0.78, small: 0.62 };
+const QUALITY_PRESETS = { high: 0.9, balanced: 0.8, small: 0.7 };
 
 export function normalizeHexColor(value) {
   const hex = String(value || '').trim().replace(/^#/, '').toUpperCase();
