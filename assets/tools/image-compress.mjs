@@ -1,6 +1,6 @@
 import { initToolShell, downloadBlob } from './common.mjs';
 import { LANGS, formatBytes, t } from './i18n.mjs';
-import { MAX_FILES, buildOutputPlan, percentSaved, validateImageFile } from './image-core.mjs';
+import { buildOutputPlan, percentSaved, validateImageFile } from './image-core.mjs';
 
 const QUALITY_PRESETS = { high: 0.9, balanced: 0.8, small: 0.7 };
 
@@ -277,7 +277,7 @@ function initBrowserPage() {
     elements.processAll.disabled = actionState.processDisabled;
     elements.processAll.textContent = actionState.label;
     elements.downloadZip.disabled = actionState.downloadDisabled;
-    elements.queueSummary.textContent = hasFiles ? `${t(currentLang, 'files_count', { count: queue.items.length })} / ${MAX_FILES}` : t(currentLang, 'no_images_selected');
+    elements.queueSummary.textContent = hasFiles ? t(currentLang, 'files_count', { count: queue.items.length }) : t(currentLang, 'no_images_selected');
   }
   document.addEventListener('image-tools:languagechange', (event) => {
     currentLang = event.detail?.lang || currentLang;

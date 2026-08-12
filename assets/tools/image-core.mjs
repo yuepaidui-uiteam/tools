@@ -1,4 +1,4 @@
-export const MAX_FILES = 30;
+export const MAX_FILES = Number.POSITIVE_INFINITY;
 export const MAX_FILE_BYTES = 25 * 1024 * 1024;
 export const SUPPORTED_TYPES = Object.freeze(['image/jpeg', 'image/png', 'image/webp']);
 
@@ -22,9 +22,6 @@ function normalizeFormat(format, fallback = 'png') {
 export function validateImageFile(file, index = 0) {
   if (!file || typeof file !== 'object') {
     return { ok: false, code: 'invalid_file' };
-  }
-  if (index >= MAX_FILES) {
-    return { ok: false, code: 'too_many_files' };
   }
   if (!SUPPORTED_TYPES.includes(file.type)) {
     return { ok: false, code: 'unsupported_type' };
