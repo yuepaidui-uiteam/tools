@@ -13,10 +13,10 @@
     @media (max-width:1000px) { .workspace { grid-template-columns:1fr; }.preview-frame { min-height:220px; } }
     @media (max-width:680px) { .wrap { max-width:100vw; padding:0 18px; }.tool-main { padding-top:30px; }.tool-heading h1 { font-size:32px; }.panel { padding:16px; }.canvas-frame { min-height:320px; padding:18px; }.canvas-actions { align-items:stretch; flex-direction:column; }.canvas-actions .button { width:100%; } }
     .canvas-frame { --checker-a:#2a2f45; --checker-b:#1c2135; background:repeating-conic-gradient(var(--checker-a) 0 25%,var(--checker-b) 0 50%) 50% / 22px 22px; }
+    .canvas-frame[data-checker="checker"] { --checker-a:#2a2f45; --checker-b:#1c2135; }
     .canvas-frame[data-checker="light"] { --checker-a:#eef0f7; --checker-b:#fff; }
-    .canvas-frame[data-checker="neutral"] { --checker-a:#b9bfce; --checker-b:#8f97aa; }
-    .canvas-frame[data-checker="dark"] { --checker-a:#2a2f45; --checker-b:#1c2135; }
-    .canvas-frame[data-checker="warm"] { --checker-a:#b8afa5; --checker-b:#8f867d; }
+    .canvas-frame[data-checker="white"] { background:#fff; }
+    .canvas-frame[data-checker="black"] { background:#000; }
     .control select { background:var(--bg); border:1px solid var(--line); border-radius:6px; color:var(--text); font:inherit; padding:9px; width:100%; }
     .empty-canvas[hidden] { display:none; }
     .canvas-frame canvas[hidden] { display:none; }
@@ -65,16 +65,16 @@
     const fileInput=$('fileInput'), chooseButton=$('chooseButton'), emptyState=$('emptyState'), mainCanvas=$('mainCanvas'), previewCanvas=$('previewCanvas'), status=$('status'), colorPicker=$('colorPicker'), swatch=$('swatch');
     const ctx=mainCanvas.getContext('2d',{willReadFrequently:true}), previewCtx=previewCanvas.getContext('2d'); let imageData=null, originalName='image';
     const canvasFrames=document.querySelectorAll('.canvas-frame');
-    const checkerControl=document.createElement('div'); checkerControl.className='control checker-control'; checkerControl.innerHTML='<label for="checkerSelect">背景类型选择</label><select id="checkerSelect"><option value="dark" selected>深色棋盘</option><option value="neutral">中性棋盘</option><option value="light">浅色棋盘</option><option value="warm">暖色棋盘</option></select><span class="hint">选择与当前图片或界面更匹配的背景，透明区域仍会保持棋盘格显示。</span>';
+    const checkerControl=document.createElement('div'); checkerControl.className='control checker-control'; checkerControl.innerHTML='<label for="checkerSelect">预览背景</label><select id="checkerSelect"><option value="checker" selected>深色棋盘</option><option value="light">浅色棋盘</option><option value="white">白色</option><option value="black">黑色</option></select><span class="hint">切换预览背景，透明区域仍会保持透明。</span>';
     document.querySelector('.workspace > section').insertBefore(checkerControl, document.querySelector('#canvasFrame'));
-    $('checkerSelect').addEventListener('change',e=>canvasFrames.forEach(frame=>frame.dataset.checker=e.target.value)); canvasFrames.forEach(frame=>frame.dataset.checker='dark');
+    $('checkerSelect').addEventListener('change',e=>canvasFrames.forEach(frame=>frame.dataset.checker=e.target.value)); canvasFrames.forEach(frame=>frame.dataset.checker='checker');
     const colorHelp=document.createElement('p'); colorHelp.className='color-help'; colorHelp.textContent='点击左侧图片中的背景区域，即可自动拾取颜色。'; $('colorPicker').closest('.color-row').after(colorHelp);
     let mode='key';
     const modeTabs=document.createElement('div'); modeTabs.className='mode-tabs'; modeTabs.setAttribute('role','tablist'); modeTabs.innerHTML='<button class="mode-tab" type="button" role="tab" aria-selected="true" data-mode="key">常规抠图</button><button class="mode-tab" type="button" role="tab" aria-selected="false" data-mode="unmult">去黑抠图</button>';
     document.querySelector('.workspace > section').insertBefore(modeTabs, checkerControl);
     const modeRow=document.createElement('div'); modeRow.className='mode-row'; modeTabs.replaceWith(modeRow); modeRow.append(modeTabs,checkerControl);
-    const parameterControls=[colorPicker,$('tolerance'),$('feather'),$('strength'),$('checkerSelect')];
-    function setMode(next){mode=next; modeTabs.querySelectorAll('.mode-tab').forEach(tab=>tab.setAttribute('aria-selected',String(tab.dataset.mode===mode))); parameterControls.forEach(control=>{control.disabled=mode==='unmult'; control.closest('.control, .color-row')?.classList.toggle('parameter-disabled',mode==='unmult')}); checkerControl.classList.toggle('parameter-disabled',mode==='unmult'); if(mode==='unmult'){renderUnmult();return;} render();}
+    const parameterControls=[colorPicker,$('tolerance'),$('feather'),$('strength')];
+    function setMode(next){mode=next; modeTabs.querySelectorAll('.mode-tab').forEach(tab=>tab.setAttribute('aria-selected',String(tab.dataset.mode===mode))); parameterControls.forEach(control=>{control.disabled=mode==='unmult'; control.closest('.control, .color-row')?.classList.toggle('parameter-disabled',mode==='unmult')}); if(mode==='unmult'){renderUnmult();return;} render();}
     modeTabs.addEventListener('click',e=>{const tab=e.target.closest('.mode-tab'); if(tab)setMode(tab.dataset.mode)});
     const controls=[['tolerance','toleranceValue',''],['feather','featherValue',''],['strength','strengthValue','%']];
     function renderUnmult(){if(!imageData)return; const src=imageData.data, out=new ImageData(new Uint8ClampedArray(src),imageData.width,imageData.height), d=out.data; for(let i=0;i<d.length;i+=4){const red=d[i],green=d[i+1],blue=d[i+2],alpha=Math.max(red,green,blue); if(alpha===0){d[i+3]=0;continue;} d[i]=Math.min(255,Math.round(red*255/alpha)); d[i+1]=Math.min(255,Math.round(green*255/alpha)); d[i+2]=Math.min(255,Math.round(blue*255/alpha)); d[i+3]=alpha;} ctx.putImageData(out,0,0); $('downloadButton').disabled=false; }
