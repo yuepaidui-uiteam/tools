@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SVGA 动画预览工具</title>
+  <link rel="stylesheet" href="assets/tools/tools.css">
+  <style>
+    :root { --svga-bg:#090b15; --svga-panel:#151a2d; --svga-line:#2b3452; --svga-muted:#9aa6cb; }
+    body { background:radial-gradient(circle at 15% 0,#28205a 0,#0b0d18 38%,#080a12 100%); }
+     .svga-main { padding-bottom:64px; padding-top:42px; }
+    .svga-head { align-items:flex-start; display:flex; gap:18px; justify-content:space-between; margin-bottom:24px; }
+    .svga-head h1 { margin:0 0 8px; }
+    .svga-head p { color:var(--svga-muted); margin:0; }
+    .back-link { color:#c4b5fd; white-space:nowrap; }
+    .svga-grid { display:grid; gap:18px; grid-template-columns:minmax(0,1.4fr) minmax(280px,.8fr); }
+     .svga-panel { background:color-mix(in srgb,var(--svga-panel) 92%,transparent); border:1px solid var(--svga-line); border-radius:12px; box-shadow:0 18px 44px #0004; padding:20px; }
+     .svga-panel h2 { font-size:18px; margin:0 0 16px; }
+     .preview-head { align-items:center; display:flex; justify-content:space-between; margin-bottom:16px; }
+     .preview-head h2 { margin:0; }
+     .background-control { align-items:center; color:var(--svga-muted); display:flex; gap:8px; }
+     .select-wrap { position:relative; }
+     .select-wrap::after { border-bottom:2px solid #fff; border-right:2px solid #fff; content:""; height:7px; pointer-events:none; position:absolute; right:18px; top:50%; transform:translateY(-65%) rotate(45deg); width:7px; }
+     .drop-zone { align-items:center; background:#1e1d43; border:1px dashed #9275f6; border-radius:10px; color:var(--svga-muted); display:flex; flex-direction:column; gap:10px; justify-content:center; left:50%; min-height:170px; padding:20px; position:absolute; text-align:center; top:50%; transform:translate(-50%,-50%); transition:.2s; width:min(68%,520px); z-index:2; }
+     .drop-zone[hidden] { display:none; }
+    .drop-zone.is-over { background:#8b5cf622; border-color:#c4b5fd; }
+    .drop-zone strong { color:#fff; font-size:17px; }
+    .drop-zone input { display:none; }
+    .drop-zone label { background:linear-gradient(120deg,#8b36ee,#3f6df5); border-radius:8px; color:#fff; cursor:pointer; font-weight:700; padding:10px 18px; }
+    .player-shell { background-color:#252b40; background-image:linear-gradient(45deg,#303852 25%,transparent 25%),linear-gradient(-45deg,#303852 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#303852 75%),linear-gradient(-45deg,transparent 75%,#303852 75%); background-position:0 0,0 12px,12px -12px,-12px 0; background-size:24px 24px; border-radius:10px; display:grid; min-height:520px; overflow:hidden; place-items:center; position:relative; }
+    .player-shell.bg-light { background-color:#f3f3f5; background-image:linear-gradient(45deg,#d8d8df 25%,transparent 25%),linear-gradient(-45deg,#d8d8df 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#d8d8df 75%),linear-gradient(-45deg,transparent 75%,#d8d8df 75%); }
+    .player-shell.bg-white { background:#fff; }
+    .player-shell.bg-black { background:#000; }
+    .player-shell.bg-blue { background:#3498db; }
+    .player-shell.bg-green { background:#2ecc71; }
+    .player-shell.bg-yellow { background:#f1c40f; }
+    .player-shell.bg-red { background:#c0392b; }
+    #player { align-items:center; display:flex; height:100%; justify-content:center; min-height:520px; position:relative; width:100%; z-index:1; }
+    #player canvas { max-height:100%; max-width:100%; }
+    .empty-state { color:var(--svga-muted); padding:30px; text-align:center; }
+     .controls { align-items:center; display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; }
+     .controls button, .controls select, .background-control select { background:#242b45; border:1px solid var(--svga-line); border-radius:8px; color:#fff; cursor:pointer; font:inherit; padding:9px 18px; }
+     .background-control select { appearance:none; min-width:125px; text-align:left; }
+     .controls button.primary { background:linear-gradient(120deg,#8b36ee,#3f6df5); border:0; }
+     .frame-controls { align-items:center; background:#242b45; border-radius:8px; display:flex; gap:8px; padding:6px 10px; width:100%; }
+     .frame-controls button { background:transparent; border:0; border-radius:5px; color:#fff; padding:4px 6px; }
+     .frame-controls .transport-button { font-size:18px; line-height:1; min-width:30px; padding:5px 7px; }
+     .frame-controls .transport-button { align-items:center; display:inline-flex; height:30px; justify-content:center; padding:0; width:30px; }
+     .frame-controls .transport-button { color:#fff; opacity:1; }
+     .frame-controls .transport-button:disabled { color:#fff; opacity:1; }
+     .frame-controls .transport-button svg { display:block; fill:#fff; height:20px; width:20px; }
+     .transport-button[hidden] { display:none; }
+     .frame-controls button:hover:not(:disabled) { background:#444650; }
+     .frame-counter { color:#fff; font-size:13px; min-width:56px; text-align:center; }
+     .controls label { align-items:center; color:var(--svga-muted); display:flex; gap:8px; }
+    .palette { align-items:center; display:flex; flex-wrap:wrap; gap:8px; width:100%; }
+    .palette-title { color:var(--svga-muted); font-size:13px; margin-right:3px; }
+    .swatch { border:2px solid transparent !important; border-radius:7px !important; height:28px; padding:0 !important; width:28px; }
+    .swatch.active { border-color:#fff !important; box-shadow:0 0 0 2px #8b5cf6; }
+    .swatch[data-bg="black"] { background:#000; }.swatch[data-bg="white"] { background:#fff; }.swatch[data-bg="blue"] { background:#3498db; }.swatch[data-bg="green"] { background:#2ecc71; }.swatch[data-bg="yellow"] { background:#f1c40f; }.swatch[data-bg="red"] { background:#c0392b; }
+     .timeline { accent-color:#9b72ff; appearance:none; background:transparent; flex:1 1 220px; height:18px; min-width:180px; opacity:1; }
+     .timeline:disabled { opacity:1; }
+     .timeline::-webkit-slider-runnable-track { background:linear-gradient(90deg,#9b72ff 0 var(--progress,0%),#0e1323 var(--progress,0%) 100%); border:1px solid #252e4d; border-radius:999px; height:7px; }
+     .timeline::-webkit-slider-thumb { appearance:none; background:#9b72ff; border:0; border-radius:50%; height:15px; margin-top:-5px; width:15px; }
+     .timeline::-moz-range-track { background:#0e1323; border:1px solid #252e4d; border-radius:999px; height:7px; }
+     .timeline::-moz-range-progress { background:#9b72ff; border-radius:999px; height:7px; }
+     .timeline::-moz-range-thumb { background:#9b72ff; border:0; border-radius:50%; height:15px; width:15px; }
+    .status { color:var(--svga-muted); font-size:13px; margin:12px 0 0; min-height:20px; }
+    .info-grid { display:grid; gap:10px; grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .info-item { background:#0e1323; border:1px solid #252e4d; border-radius:9px; padding:13px; }
+    .info-item span { color:var(--svga-muted); display:block; font-size:12px; margin-bottom:6px; }
+    .info-item strong { font-size:17px; }
+    .asset-list { list-style:none; margin:18px 0 0; max-height:220px; overflow:auto; padding:0; }
+     .asset-list li { align-items:center; color:var(--svga-muted); display:flex; font-size:13px; gap:10px; padding:9px 0; }
+    .asset-list img { background:#252b40; border-radius:5px; height:42px; object-fit:contain; width:56px; }
+    .asset-name { color:#fff; display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }.asset-meta { display:block; font-size:11px; margin-top:4px; }
+    .asset-modal { align-items:center; background:#0009; display:flex; inset:0; justify-content:center; padding:20px; position:fixed; z-index:10; }.asset-modal[hidden] { display:none; }
+    .asset-dialog { background:var(--svga-panel); border:1px solid var(--svga-line); border-radius:12px; max-height:85vh; max-width:900px; overflow:auto; padding:20px; width:100%; }.asset-dialog-head { align-items:center; display:flex; justify-content:space-between; margin-bottom:16px; }.asset-dialog-head h2 { margin:0; }.asset-dialog-close { background:#29324e; border:0; border-radius:7px; color:#fff; cursor:pointer; padding:8px 12px; }.asset-grid { display:grid; gap:12px; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); }.asset-card { background:#0e1323; border:1px solid #252e4d; border-radius:8px; padding:8px; }.asset-card img { background:#252b40; display:block; height:100px; object-fit:contain; width:100%; }.asset-card strong { display:block; font-size:12px; margin-top:7px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+     @media (max-width:760px) { .svga-main { padding-top:30px; }.svga-head { flex-direction:column; }.svga-grid { grid-template-columns:1fr; }.player-shell,#player { min-height:360px; }.drop-zone { width:82%; } }
+  </style>
+</head>
+<body>
+  <main class="wrap svga-main">
+    <header class="svga-head">
+      <div><div class="eyebrow">本地动画工具</div><h1>SVGA 动画预览工具</h1><p>在浏览器中预览 SVGA 动画，并查看文件、帧率、素材和估算内存信息。</p></div>
+      <a class="back-link" href="index.html">返回工具首页</a>
+    </header>
+
+    <div class="svga-grid">
+      <section class="svga-panel">
+         <div class="preview-head"><h2>动画预览</h2><label class="background-control">背景<span class="select-wrap"><select id="backgroundSelect"><option value="dark">深色棋盘</option><option value="light">浅色棋盘</option><option value="black">黑色</option><option value="white">白色</option><option value="blue">蓝色</option><option value="green">绿色</option><option value="yellow">黄色</option><option value="red">红色</option></select></span></label></div>
+        <div class="player-shell" id="playerShell"><div class="drop-zone" id="dropZone"><strong>拖入 SVGA 文件到这里</strong><span>或选择本地 .svga 文件</span><label for="fileInput">选择文件</label><input id="fileInput" type="file" accept=".svga,application/octet-stream"></div><div id="player"><div class="empty-state">选择文件后将在这里播放动画</div></div></div>
+         <div class="controls">
+           <div class="frame-controls" aria-label="逐帧控制">
+             <button class="transport-button" id="playPauseButton" type="button" disabled aria-label="播放" title="播放"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"></path></svg></button><button class="transport-button" id="prevFrameButton" type="button" disabled aria-label="上一帧" title="上一帧"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h2v12H6V6zm3 6 9 6V6l-9 6z"></path></svg></button><button class="transport-button" id="nextFrameButton" type="button" disabled aria-label="下一帧" title="下一帧"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 6h2v12h-2V6zM6 18l9-6-9-6v12z"></path></svg></button><span class="frame-counter" id="frameCounter">0 / 0</span>
+             <input class="timeline" id="timeline" type="range" min="0" max="0" value="0" disabled aria-label="动画进度">
+           </div>
+         </div>
+       </section>
+
+      <aside class="svga-panel">
+        <h2>文件信息</h2>
+        <div class="info-grid">
+          <div class="info-item"><span>文件名</span><strong id="fileName">-</strong></div><div class="info-item"><span>文件大小</span><strong id="fileSize">-</strong></div>
+          <div class="info-item"><span>画布尺寸</span><strong id="dimensions">-</strong></div><div class="info-item"><span>帧数</span><strong id="frames">-</strong></div>
+          <div class="info-item"><span>帧率</span><strong id="fps">-</strong></div><div class="info-item"><span>时长</span><strong id="duration">-</strong></div>
+          <div class="info-item"><span>素材数量</span><strong id="assetCount">-</strong></div><div class="info-item"><span>估算内存</span><strong id="memory">-</strong></div>
+        </div>
+        <h2 style="margin-top:22px">素材预览</h2><ul class="asset-list" id="assetList"><li>载入文件后显示素材清单</li></ul>
+      </aside>
+    </div>
+  </main>
+
+  <script src="assets/tools/vendor/svga-web.umd.js"></script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const dropZone = $('dropZone'), fileInput = $('fileInput'), playerShell = $('playerShell'), playerHost = $('player');
+    const playPauseButton = $('playPauseButton'), prevFrameButton = $('prevFrameButton'), nextFrameButton = $('nextFrameButton'), frameCounter = $('frameCounter'), timeline = $('timeline'), status = $('status'), assetList = $('assetList');
+    let player = null, currentItem = null, currentFrames = 0, assetEntries = [], assetObjectUrls = [];
+    let isPlaying = false;
+
+    function formatBytes(bytes) { if (!Number.isFinite(bytes) || bytes < 0) return '-'; if (bytes < 1024) return `${bytes} B`; const units = ['KB','MB','GB']; let value = bytes / 1024; let i = 0; while (value >= 1024 && i < units.length - 1) { value /= 1024; i++; } return `${value.toFixed(value >= 100 ? 0 : 1)} ${units[i]}`; }
+    function setStatus(message, error = false) { if (!status) return; status.textContent = message; status.style.color = error ? '#ff9fb8' : ''; }
+    function setInfo(id, value) { $(id).textContent = value || '-'; }
+    function getImages(item) { return item?.images || item?.imageMap || item?.textures || {}; }
+    function getNumber(item, keys) { for (const key of keys) { const value = Number(item?.[key]); if (Number.isFinite(value) && value > 0) return value; } return 0; }
+    function updateInfo(file, item) {
+      const size = item?.videoSize || item?.size || {};
+      const width = getNumber(size, ['width']) || getNumber(item, ['width']);
+      const height = getNumber(size, ['height']) || getNumber(item, ['height']);
+      currentFrames = getNumber(item, ['frames','frameCount']); const fps = getNumber(item, ['FPS','fps','frameRate']);
+      const images = getImages(item); const names = Object.keys(images); const rawAssets = names.reduce((sum, name) => { const value = images[name]; const pixels = Number(value?.naturalWidth || value?.width || 0) * Number(value?.naturalHeight || value?.height || 0) * 4; return sum + (value?.byteLength || value?.length || pixels || 0); }, 0);
+      const frameBuffer = width * height * 4 * Math.max(currentFrames, 1); const estimated = frameBuffer + rawAssets;
+      setInfo('fileName', file.name); setInfo('fileSize', formatBytes(file.size)); setInfo('dimensions', width && height ? `${width} × ${height}` : '-'); setInfo('frames', currentFrames ? `${currentFrames}` : '-'); setInfo('fps', fps ? `${fps} FPS` : '-'); setInfo('duration', fps && currentFrames ? `${(currentFrames / fps).toFixed(2)} 秒` : '-'); setInfo('assetCount', names.length ? `${names.length}` : '-'); setInfo('memory', estimated ? formatBytes(estimated) : '-');
+      assetObjectUrls.forEach((url) => URL.revokeObjectURL(url)); assetObjectUrls = []; assetEntries = names.map((name) => ({ name, value: images[name] })); renderAssets();
+       timeline.max = Math.max(currentFrames - 1, 0); timeline.value = 0; timeline.disabled = !currentFrames; updateTimelineVisual(0); frameCounter.textContent = currentFrames ? `1 / ${currentFrames}` : '0 / 0';
+    }
+    function assetSource(value) { if (typeof value === 'string') return value.startsWith('data:') ? value : `data:image/png;base64,${value}`; if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) { const bytes = value instanceof ArrayBuffer ? value : value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength); const url = URL.createObjectURL(new Blob([bytes], { type:'image/png' })); assetObjectUrls.push(url); return url; } return value?.currentSrc || value?.src || ''; }
+    function assetMeta(value) { const width = Number(value?.naturalWidth || value?.width || value?.w || 0); const height = Number(value?.naturalHeight || value?.height || value?.h || 0); return width && height ? `${width} × ${height}` : '读取尺寸中…'; }
+    function assetBytes(value) { return Number(value?.byteLength || value?.length || 0); }
+    function renderAssets() { assetList.innerHTML = ''; if (!assetEntries.length) { assetList.innerHTML = '<li>未读取到素材清单</li>'; return; } assetEntries.forEach(({name,value}) => { const src = assetSource(value); const row = document.createElement('li'); row.innerHTML = `<img alt=""><div><span class="asset-name"></span><span class="asset-meta"></span></div>`; const image = row.querySelector('img'); const meta = row.querySelector('.asset-meta'); image.src = src; image.alt = name; image.addEventListener('load', () => { meta.textContent = `${image.naturalWidth} × ${image.naturalHeight} · ${formatBytes(assetBytes(value))}`; }); row.querySelector('.asset-name').textContent = name; meta.textContent = `${assetMeta(value)} · ${formatBytes(assetBytes(value))}`; assetList.appendChild(row); }); }
+    function updateTimelineVisual(frame = Number(timeline.value)) { const percent = currentFrames > 1 ? (Math.max(0, Math.min(frame, currentFrames - 1)) / (currentFrames - 1)) * 100 : 0; timeline.style.setProperty('--progress', `${percent}%`); }
+    function updateFrameCounter(frame = Number(timeline.value)) { updateTimelineVisual(frame); frameCounter.textContent = currentFrames ? `${Math.min(Math.max(frame, 0) + 1, currentFrames)} / ${currentFrames}` : '0 / 0'; }
+    function iconSvg(name) { const paths = { play:'<path d="M8 5v14l11-7z"></path>', pause:'<path d="M6 5h4v14H6V5zm8 0h4v14h-4V5z"></path>' }; return `<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor">${paths[name]}</svg>`; }
+    function setPlaybackState(playing) { isPlaying = playing; playPauseButton.classList.toggle('active', playing); playPauseButton.innerHTML = iconSvg(playing ? 'pause' : 'play'); playPauseButton.setAttribute('aria-label', playing ? '暂停' : '播放'); playPauseButton.title = playing ? '暂停' : '播放'; }
+    function renderFrame(frame) { if (!player || !currentFrames) return; frame = Math.max(0, Math.min(Number(frame) || 0, currentFrames - 1)); player.pause(); player.currentFrame = frame; const item = player.videoItem || currentItem; player.renderer.drawFrame(item.images, item.sprites, item.dynamicElements, frame); timeline.value = frame; updateFrameCounter(frame); setPlaybackState(false); }
+    function enableControls(enabled) { [playPauseButton,prevFrameButton,nextFrameButton].forEach((button) => { button.disabled = !enabled; }); timeline.disabled = !enabled || !currentFrames; }
+    async function loadFile(file) {
+      dropZone.hidden = false;
+      if (!file || (!file.name.toLowerCase().endsWith('.svga') && file.type !== 'application/octet-stream')) { setStatus('请选择 .svga 文件', true); return; }
+      if (!window.SVGA?.Parser || !window.SVGA?.Player) { setStatus('播放器加载失败，请检查网络后刷新页面', true); return; }
+       setStatus(`正在解析：${file.name}`); enableControls(false); updateFrameCounter(0); playerHost.innerHTML = '<div class="empty-state">正在解析动画…</div>'; currentItem = null;
+      try {
+        const data = await file.arrayBuffer(); const parser = new SVGA.Parser(); const item = await parser.do(data);
+        currentItem = item; updateInfo(file, item); playerHost.innerHTML = '<canvas id="svgaCanvas" aria-label="SVGA 动画预览"></canvas>'; player = new SVGA.Player('#svgaCanvas'); player.set({ loop:0, fillMode:'forwards', cacheFrames:false }); await player.mount(item); player.$on('start', () => setPlaybackState(true)); player.$on('pause', () => setPlaybackState(false)); player.$on('stop', () => setPlaybackState(false)); player.$on('process', () => { const frame = Number(player.currentFrame) || 0; timeline.value = frame; updateFrameCounter(frame); }); player.start(); setPlaybackState(true); dropZone.hidden = true; enableControls(true); setStatus('解析完成，动画正在播放');
+      } catch (error) { dropZone.hidden = false; setStatus(`解析失败：${error.message || error}`, true); }
+    }
+    fileInput.addEventListener('change', () => loadFile(fileInput.files[0]));
+    dropZone.addEventListener('dragover', (event) => { event.preventDefault(); dropZone.classList.add('is-over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('is-over'));
+    dropZone.addEventListener('drop', (event) => { event.preventDefault(); dropZone.classList.remove('is-over'); loadFile(event.dataTransfer.files[0]); });
+     playPauseButton.addEventListener('click', () => { if (!player) return; if (isPlaying) { player.pause(); setPlaybackState(false); } else { player.start(); setPlaybackState(true); } });
+     prevFrameButton.addEventListener('click', () => renderFrame(Math.max(Number(timeline.value) - 1, 0)));
+     nextFrameButton.addEventListener('click', () => renderFrame(Math.min(Number(timeline.value) + 1, Math.max(currentFrames - 1, 0))));
+     timeline.addEventListener('input', () => renderFrame(Number(timeline.value)));
+    $('backgroundSelect').addEventListener('change', (event) => { playerShell.className = `player-shell bg-${event.target.value}`; });
+  </script>
+</body>
+</html>
