@@ -1,0 +1,2487 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PNG序列 → SVGA / WebP / GIF (可调内部缩放)</title>
+    <!-- JSZip for SVGA -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- gif.js for GIF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+    <!-- 本地 GIF 解码器，确保真实预览不依赖 CDN -->
+    <script src="assets/tools/vendor/gifuct-web.umd.js"></script>
+    <!-- pako for SVGA (gzip) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+    <!-- 本地 SVGA 播放器，避免 CDN 加载失败导致预览无法控制 -->
+    <script src="assets/tools/vendor/svga-web.umd.js"></script>
+    <style id="tool-theme-overrides">
+        :root {
+            --page-bg: #080b16;
+            --panel-bg: #151b31;
+            --panel-soft: #10162a;
+            --line: #2a3558;
+            --text: #f4f5ff;
+            --muted: #9aa7d1;
+            --brand: #a66cff;
+            --brand-2: #4268ff;
+        }
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', Roboto, sans-serif;
+            background: radial-gradient(circle at 12% 0%, #1a1640 0, transparent 34%), var(--page-bg);
+            color: var(--text);
+            padding: 0;
+            min-height: 100vh;
+            display: block;
+        }
+        .app {
+            max-width: 1240px;
+            margin: 0 auto;
+            padding: 42px 24px 64px;
+            background: transparent;
+            border-radius: 0;
+            box-shadow: none;
+            overflow: visible;
+        }
+        .app h1 {
+            font-size: clamp(28px, 4vw, 42px);
+            line-height: 1.2;
+            margin-bottom: 10px;
+            color: var(--text);
+            letter-spacing: .01em;
+        }
+        .app h1 small,
+        .app .badge {
+            color: var(--muted);
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+        }
+        .app h1 small { font-size: 15px; }
+        .app .badge { font-size: 13px; }
+        .home-link {
+            display: inline-flex;
+            align-items: center;
+            margin-left: auto;
+            color: #b47bff;
+            font-size: 14px;
+            font-weight: 500;
+            text-decoration: none;
+        }
+        .home-link:hover { color: #d3b5ff; }
+        .grid {
+            gap: 18px;
+            grid-template-columns: 340px minmax(0, 1fr);
+        }
+        .settings {
+            flex-direction: column;
+            gap: 16px;
+        }
+        .settings .group {
+            flex: 0 0 auto !important;
+            min-width: 0;
+        }
+        @media (max-width: 920px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+        .panel {
+            background: var(--panel-bg);
+            border-radius: 8px;
+            padding: 20px;
+            border: 1px solid var(--line);
+        }
+        .panel-title {
+            color: var(--text);
+            margin-bottom: 14px;
+        }
+        .panel-title span { color: var(--muted) !important; }
+        .upload-area {
+            border: 2px dashed #9b6cff;
+            border-radius: 8px;
+            padding: 30px 20px;
+            background: var(--panel-soft);
+        }
+        .upload-area:hover,
+        .upload-area.dragover {
+            border-color: #c4a0ff;
+            background: #191a3a;
+        }
+        .upload-area p { color: var(--muted); }
+        .upload-area p[style] { color: #7886b4 !important; }
+        .upload-area .file-list {
+            color: var(--text);
+            background: #0d1223;
+            border: 1px solid var(--line);
+        }
+        .upload-area .file-list span { border-bottom-color: #283252; }
+        .settings label { color: var(--muted); }
+        .settings .value { color: var(--text); }
+        .settings input[type="range"] { accent-color: var(--brand); }
+        .settings input[type="number"] {
+            color: var(--text);
+            background: #0d1223;
+            border-color: var(--line);
+        }
+        .settings .gif-dither-option {
+            align-items: center;
+            color: var(--muted);
+            cursor: pointer;
+            display: flex;
+            gap: 8px;
+            line-height: 20px;
+            margin-top: -4px;
+        }
+        .settings .gif-dither-option input {
+            accent-color: var(--brand);
+            height: 16px;
+            margin: 0;
+            width: 16px;
+        }
+        .settings .size-group {
+            gap: 10px;
+        }
+        .settings .size-group input[type="number"] {
+            width: 104px !important;
+            height: 38px;
+            box-sizing: border-box;
+            padding: 6px 10px;
+            font-size: 15px;
+        }
+        .preview-box {
+            background: #0d1223;
+            border-color: var(--line);
+        }
+        .preview-box .placeholder { color: var(--muted); }
+        .controls button,
+        .footer-actions button,
+        .export-preview-bar .btn-back {
+            color: var(--text);
+            background: #202947;
+            border-color: var(--line);
+        }
+        .controls button:hover,
+        .footer-actions button:hover,
+        .export-preview-bar .btn-back:hover { background: #2b365a; }
+        .controls button.primary,
+        .footer-actions .btn-svga,
+        .footer-actions .btn-webp,
+        .footer-actions .btn-gif,
+        .export-preview-bar .btn-download {
+            background: linear-gradient(135deg, var(--brand), var(--brand-2));
+            border-color: transparent;
+        }
+        .controls button.primary:hover,
+        .footer-actions .btn-svga:hover,
+        .footer-actions .btn-webp:hover,
+        .footer-actions .btn-gif:hover,
+        .export-preview-bar .btn-download:hover { filter: brightness(1.08); }
+        .info-grid { color: var(--muted); }
+        .info-grid .item { background: #0d1223; border: 1px solid var(--line); }
+        .info-grid .item .label { color: var(--muted); }
+        .info-grid .item .value { color: var(--text); }
+        .footer-actions { border-top-color: var(--line); }
+        .status-bar { color: var(--muted); background: #0d1223; border: 1px solid var(--line); }
+        .export-preview { background: #0d1223; }
+        .upload-area .file-list::-webkit-scrollbar-thumb { background: #56648e; }
+        @media (max-width: 640px) {
+            .app { padding: 30px 16px 44px; }
+            .app h1 { font-size: 28px; }
+            .home-link { width: 100%; margin: 4px 0 0; }
+        }
+    </style>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', Roboto, sans-serif;
+            background: #f0f4f8;
+            color: #1e293b;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .app {
+            max-width: 1440px;
+            width: 100%;
+            background: #ffffff;
+            border-radius: 32px;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+            padding: 28px 32px;
+        }
+        h1 {
+            font-size: 26px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        h1 small {
+            font-size: 14px;
+            font-weight: 400;
+            color: #64748b;
+            background: #eef2f6;
+            padding: 2px 14px;
+            border-radius: 30px;
+        }
+        .badge {
+            font-size: 12px;
+            background: #eef2f6;
+            padding: 0 10px;
+            border-radius: 20px;
+            color: #475569;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+        @media (max-width: 920px) {
+            .grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+        }
+        .panel {
+            background: #fafcff;
+            border-radius: 20px;
+            padding: 20px 24px;
+            border: 1px solid #e9edf4;
+        }
+        .panel-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: #0f172a;
+            margin-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .upload-area {
+            border: 2px dashed #dce3ec;
+            border-radius: 16px;
+            padding: 32px 20px;
+            text-align: center;
+            background: #ffffff;
+            transition: border 0.2s, background 0.2s;
+            cursor: pointer;
+        }
+        .upload-area:hover {
+            border-color: #3b82f6;
+            background: #f8faff;
+        }
+        .upload-area.dragover {
+            border-color: #3b82f6;
+            background: #eef6ff;
+        }
+        .upload-area .icon {
+            font-size: 42px;
+            display: block;
+            margin-bottom: 10px;
+        }
+        .upload-area p {
+            color: #64748b;
+            font-size: 14px;
+        }
+        .upload-area .file-list {
+            margin-top: 14px;
+            font-size: 13px;
+            color: #1e293b;
+            text-align: left;
+            max-height: 120px;
+            overflow-y: auto;
+            background: #f1f4f9;
+            border-radius: 10px;
+            padding: 8px 14px;
+        }
+        .upload-area .file-list:empty {
+            display: none;
+        }
+        .upload-area .file-list span {
+            display: block;
+            padding: 2px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .upload-area.has-files {
+            height: 150px;
+            box-sizing: border-box;
+            padding: 0;
+            border: 0;
+            background: transparent;
+        }
+        .upload-area.has-files > .icon,
+        .upload-area.has-files > p {
+            display: none;
+        }
+        .upload-area.has-files .file-list {
+            margin-top: 0;
+            width: 100%;
+            height: 100%;
+            max-height: none;
+            box-sizing: border-box;
+            border: 1px solid #2a3558;
+            background: #0d1223;
+        }
+        .settings {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 16px 24px;
+            margin: 16px 0 8px;
+        }
+        .settings .group {
+            flex: 1 1 140px;
+            min-width: 120px;
+        }
+        .settings label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: #475569;
+            margin-bottom: 4px;
+        }
+        .settings input[type="range"] {
+            width: 100%;
+            accent-color: #3b82f6;
+        }
+        .settings .value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #0f172a;
+            margin-left: 6px;
+        }
+        .settings input[type="number"] {
+            width: 80px;
+            padding: 4px 8px;
+            border: 1px solid #dce3ec;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+        .settings .size-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        .settings .size-group label {
+            margin-bottom: 0;
+        }
+        .preview-box {
+            background: #00000005;
+            border-radius: 16px;
+            overflow: hidden;
+            position: relative;
+            aspect-ratio: 16 / 9;
+            min-height: 280px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #e9edf4;
+            background: #fafcff;
+        }
+        .preview-box canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
+        }
+        .preview-box .placeholder {
+            color: #94a3b8;
+            text-align: center;
+            font-size: 15px;
+            line-height: 1.8;
+            padding: 20px;
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .preview-box .placeholder .big-icon {
+            font-size: 52px;
+            display: block;
+            margin-bottom: 10px;
+        }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            margin: 10px 0 0;
+            padding: 8px;
+            border: 1px solid #2a3558;
+            border-radius: 14px;
+            background: #0d1223;
+        }
+        .controls button {
+            min-width: 78px;
+            justify-content: center;
+            padding: 7px 14px;
+            border: 1px solid #dce3ec;
+            border-radius: 30px;
+            background: #fff;
+            color: #1e293b;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .controls button:hover {
+            background: #f1f4f9;
+            border-color: #b8c5d6;
+        }
+        .controls button.primary {
+            background: #3b82f6;
+            color: #fff;
+            border-color: #3b82f6;
+        }
+        .controls button.primary:hover {
+            background: #2563eb;
+        }
+        .controls button.success {
+            background: #10b981;
+            color: #fff;
+            border-color: #10b981;
+        }
+        .controls button.success:hover {
+            background: #059669;
+        }
+        .controls button.warning {
+            background: #f59e0b;
+            color: #fff;
+            border-color: #f59e0b;
+        }
+        .controls button.warning:hover {
+            background: #d97706;
+        }
+        .frame-controls {
+            align-items: center;
+            background: #242b45;
+            border-radius: 8px;
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            min-height: 42px;
+            padding: 6px 10px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .frame-controls .transport-button {
+            align-items: center;
+            background: transparent;
+            border: 0;
+            border-radius: 5px;
+            color: #fff;
+            cursor: pointer;
+            display: inline-flex;
+            height: 30px;
+            justify-content: center;
+            padding: 0;
+            width: 30px;
+        }
+        .frame-controls .transport-button:hover:not(:disabled) {
+            background: #444650;
+        }
+        .frame-controls .transport-button:disabled {
+            cursor: default;
+            opacity: .45;
+        }
+        .frame-controls .transport-button svg {
+            display: block;
+            fill: currentColor;
+            height: 20px;
+            pointer-events: none;
+            width: 20px;
+        }
+        .frame-counter {
+            color: #fff;
+            font-size: 13px;
+            min-width: 56px;
+            text-align: center;
+        }
+        .frame-timeline {
+            accent-color: #9b72ff;
+            appearance: none;
+            background: transparent;
+            flex: 1 1 auto;
+            height: 18px;
+            min-width: 100px;
+        }
+        .frame-timeline::-webkit-slider-runnable-track {
+            background: linear-gradient(90deg, #9b72ff 0 var(--progress, 0%), #0e1323 var(--progress, 0%) 100%);
+            border: 1px solid #252e4d;
+            border-radius: 999px;
+            height: 7px;
+        }
+        .frame-timeline::-webkit-slider-thumb {
+            appearance: none;
+            background: #9b72ff;
+            border: 0;
+            border-radius: 50%;
+            height: 15px;
+            margin-top: -5px;
+            width: 15px;
+        }
+        .frame-timeline::-moz-range-track {
+            background: #0e1323;
+            border: 1px solid #252e4d;
+            border-radius: 999px;
+            height: 7px;
+        }
+        .frame-timeline::-moz-range-progress {
+            background: #9b72ff;
+            border-radius: 999px;
+            height: 7px;
+        }
+        .frame-timeline::-moz-range-thumb {
+            background: #9b72ff;
+            border: 0;
+            border-radius: 50%;
+            height: 15px;
+            width: 15px;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 10px;
+            margin: 12px 0 4px;
+            font-size: 13px;
+            color: #475569;
+        }
+        .info-grid .item {
+            background: #f1f4f9;
+            padding: 6px 12px;
+            border-radius: 10px;
+            display: flex;
+            justify-content: space-between;
+        }
+        .info-grid .item .label {
+            color: #64748b;
+        }
+        .info-grid .item .value {
+            font-weight: 600;
+            color: #0f172a;
+        }
+        .footer-actions {
+            margin-top: 12px;
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+            border-top: 0;
+            padding-top: 0;
+        }
+        .footer-actions button {
+            height: 38px;
+            min-width: 0;
+            justify-content: center;
+            padding: 0 10px;
+            border-radius: 30px;
+            border: none;
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+            transition: 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #eef2f6;
+            color: #1e293b;
+        }
+        .footer-actions button:hover {
+            background: #dce3ec;
+        }
+        .footer-actions .btn-svga {
+            background: #8b5cf6;
+            color: #fff;
+        }
+        .footer-actions .btn-svga:hover {
+            background: #7c3aed;
+        }
+        .footer-actions .btn-webp {
+            background: #3b82f6;
+            color: #fff;
+        }
+        .footer-actions .btn-webp:hover {
+            background: #2563eb;
+        }
+        .footer-actions .btn-gif {
+            background: #ef4444;
+            color: #fff;
+        }
+        .footer-actions .btn-gif:hover {
+            background: #dc2626;
+        }
+        .status-bar {
+            margin-top: 12px;
+            padding: 8px 14px;
+            background: #f1f4f9;
+            border-radius: 30px;
+            font-size: 13px;
+            color: #475569;
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            display: none;
+        }
+        .status-bar .dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-bar .dot.green {
+            background: #10b981;
+        }
+        .status-bar .dot.blue {
+            background: #3b82f6;
+        }
+        .status-bar .dot.orange {
+            background: #f59e0b;
+        }
+        .status-bar .dot.gray {
+            background: #94a3b8;
+        }
+        .hidden {
+            display: none !important;
+        }
+        .preview-panel.export-mode .controls {
+            display: none;
+        }
+        .preview-panel.export-mode .status-bar {
+            margin-top: 10px;
+        }
+        .preview-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .preview-title-actions {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .preview-title-status {
+            color: #9aa7d1;
+            font-size: 13px;
+            font-weight: 400;
+        }
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+        .preview-background-select {
+            min-width: 124px;
+            padding: 8px 30px 8px 12px;
+            border: 1px solid #2a3558;
+            border-radius: 8px;
+            color: #f4f5ff;
+            background: #202947;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .preview-background-select:focus {
+            outline: 2px solid rgba(166, 108, 255, 0.3);
+            outline-offset: 1px;
+        }
+        /* 导出预览遮罩 */
+        .export-preview {
+            position: absolute;
+            inset: 0;
+            background: #0b1220;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 16px;
+            z-index: 5;
+        }
+        .export-preview-media {
+            flex: 1;
+            width: 100%;
+            min-height: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        .export-preview-media .export-media {
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+            border-radius: 8px;
+            background:
+                linear-gradient(45deg, #1e293b 25%, transparent 25%) -8px 0,
+                linear-gradient(-45deg, #1e293b 25%, transparent 25%) -8px 0,
+                linear-gradient(45deg, transparent 75%, #1e293b 75%),
+                linear-gradient(-45deg, transparent 75%, #1e293b 75%);
+            background-size: 16px 16px;
+            background-color: #0f172a;
+        }
+        .export-preview-bar {
+            display: flex;
+            width: 100%;
+            margin-top: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px;
+            align-items: center;
+            justify-content: stretch;
+        }
+        .export-preview-bar .export-filename {
+            flex: 1 1 auto;
+            width: auto;
+            min-width: 0;
+            height: 38px;
+            padding: 0 14px;
+            box-sizing: border-box;
+            border: 1px solid #2a3558;
+            border-radius: 24px;
+            background: #0d1223;
+            color: #f4f5ff;
+            font-size: 13px;
+            outline: none;
+        }
+        .export-preview-bar .export-filename:focus {
+            border-color: #a66cff;
+            box-shadow: 0 0 0 2px rgba(166, 108, 255, 0.18);
+        }
+        .export-preview-bar button {
+            height: 38px;
+            min-width: 82px;
+            padding: 10px 16px;
+            border-radius: 30px;
+            border: none;
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .export-preview-bar .btn-download {
+            background: #10b981;
+            color: #fff;
+        }
+        .export-preview-bar .btn-download:hover {
+            background: #059669;
+        }
+        .export-preview-bar .btn-download:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            filter: none;
+        }
+        .export-preview-bar .btn-back {
+            background: #eef2f6;
+            color: #1e293b;
+        }
+        @media (max-width: 720px) {
+            .footer-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (max-width: 520px) {
+            .footer-actions { grid-template-columns: 1fr; }
+            .footer-actions button:last-child { grid-column: auto; }
+        }
+        .export-preview-bar .btn-back:hover {
+            background: #dce3ec;
+        }
+        .export-preview-bar .export-estimate {
+            display: none;
+            flex: 0 0 100%;
+            color: #9aa7d1;
+            font-size: 12px;
+            line-height: 1.4;
+            padding: 0 4px;
+        }
+        .preview-panel.export-mode .export-estimate { display: block; }
+        .preview-box.bg-dark-checker .export-preview-media .export-media {
+            background:
+                linear-gradient(45deg, #1e293b 25%, transparent 25%) -8px 0,
+                linear-gradient(-45deg, #1e293b 25%, transparent 25%) -8px 0,
+                linear-gradient(45deg, transparent 75%, #1e293b 75%),
+                linear-gradient(-45deg, transparent 75%, #1e293b 75%);
+            background-size: 16px 16px;
+            background-color: #0f172a;
+        }
+        .preview-box.bg-light-checker .export-preview-media .export-media {
+            background:
+                linear-gradient(45deg, #e2e8f0 25%, transparent 25%) -8px 0,
+                linear-gradient(-45deg, #e2e8f0 25%, transparent 25%) -8px 0,
+                linear-gradient(45deg, transparent 75%, #e2e8f0 75%),
+                linear-gradient(-45deg, transparent 75%, #e2e8f0 75%);
+            background-size: 16px 16px;
+            background-color: #f8fafc;
+        }
+        .preview-box.bg-white .export-preview-media .export-media { background: #ffffff; }
+        .preview-box.bg-black .export-preview-media .export-media { background: #000000; }
+        /* 背景只绑定到真实资源画布，导出预览外框保持深色。 */
+        .preview-box .export-preview-media .export-media {
+            background-image: var(--asset-background-image, none);
+            background-color: var(--asset-background-color, #0f172a);
+        }
+        .preview-box #previewCanvas {
+            background-image: var(--asset-background-image, none);
+            background-color: var(--asset-background-color, #0f172a);
+        }
+        .upload-area .file-list::-webkit-scrollbar {
+            width: 4px;
+        }
+        .upload-area .file-list::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 8px;
+        }
+    </style>
+    <style id="tool-theme-final-overrides">
+        body { background: #080b16; color: #f4f5ff; }
+        .app { max-width: 1240px; margin: 0 auto; padding: 42px 24px 64px; background: transparent; border-radius: 0; box-shadow: none; overflow: visible; }
+        .app h1 { color: #f4f5ff; font-size: clamp(28px, 4vw, 42px); line-height: 1.2; margin-bottom: 10px; }
+        .app h1 small, .app .badge { color: #9aa7d1; background: transparent; padding: 0; }
+        .app h1 small { font-size: 15px; }
+        .app .badge { font-size: 13px; }
+        .home-link { margin-left: auto; color: #b47bff; font-size: 14px; text-decoration: none; }
+        .home-link:hover { color: #d3b5ff; }
+        .grid { gap: 18px; }
+        .panel { background: #151b31; border: 1px solid #2a3558; border-radius: 8px; padding: 20px; }
+        .panel-title { color: #f4f5ff; }
+        .panel-title span { color: #9aa7d1 !important; }
+        .preview-title > span:first-child { color: #f4f5ff !important; }
+        .preview-title-status { color: #9aa7d1 !important; }
+        .upload-area { border-color: #9b6cff; border-radius: 8px; background: #10162a; }
+        .upload-area:hover, .upload-area.dragover { border-color: #c4a0ff; background: #191a3a; }
+        .upload-area p { color: #9aa7d1; }
+        .upload-area p[style] { color: #7886b4 !important; }
+        .upload-area .file-list { color: #f4f5ff; background: #0d1223; border: 1px solid #2a3558; }
+        .upload-area .file-list span { border-bottom-color: #283252; }
+        .settings label, .info-grid, .status-bar { color: #9aa7d1; }
+        .settings .value, .info-grid .item .value { color: #f4f5ff; }
+        .settings input[type="range"] { accent-color: #a66cff; }
+        .settings input[type="number"] { color: #f4f5ff; background: #0d1223; border-color: #2a3558; }
+        .settings select {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #2a3558;
+            border-radius: 8px;
+            color: #f4f5ff;
+            background: #0d1223;
+            font-size: 13px;
+        }
+        .preview-box { background: #0d1223; border-color: #2a3558; }
+        .preview-box .placeholder { color: #9aa7d1; }
+        .controls button, .footer-actions button, .export-preview-bar .btn-back { color: #f4f5ff; background: #202947; border-color: #2a3558; }
+        .controls button:hover, .footer-actions button:hover, .export-preview-bar .btn-back:hover { background: #2b365a; }
+        .controls button.primary, .footer-actions .btn-svga, .footer-actions .btn-webp, .footer-actions .btn-gif, .export-preview-bar .btn-download { background: linear-gradient(135deg, #9139ee, #4268ff); border-color: transparent; }
+        .controls button.primary:hover, .footer-actions .btn-svga:hover, .footer-actions .btn-webp:hover, .footer-actions .btn-gif:hover, .export-preview-bar .btn-download:hover { filter: brightness(1.08); }
+        .info-grid .item { background: #0d1223; border: 1px solid #2a3558; }
+        .info-grid .item .label { color: #9aa7d1; }
+        .footer-actions { border-top-color: #2a3558; }
+        .footer-actions { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+        .footer-actions .btn-svga { background: #8b5cf6; }
+        .footer-actions .btn-webp { background: #3b82f6; }
+        .footer-actions .btn-gif { background: #ef4444; }
+        .footer-actions .btn-svga:hover { background: #7c3aed; }
+        .footer-actions .btn-webp:hover { background: #2563eb; }
+        .footer-actions .btn-gif:hover { background: #dc2626; }
+        @media (max-width: 720px) {
+            .footer-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (max-width: 520px) {
+            .footer-actions { grid-template-columns: 1fr; }
+            .settings .size-group input[type="number"] { width: 92px !important; }
+        }
+        .status-bar { background: #0d1223; border: 1px solid #2a3558; }
+        .export-preview { background: #0d1223; }
+        .tool-header { position: relative; padding: 4px 0 22px; }
+        .tool-eyebrow { color: #b47bff; font-size: 14px; margin-bottom: 10px; }
+        .tool-header h1 { margin: 0 0 10px; font-size: clamp(30px, 4vw, 42px); }
+        .tool-description { margin: 0; color: #9aa7d1; font-size: 16px; line-height: 1.6; }
+        .tool-header .home-link { position: absolute; top: 4px; right: 0; }
+        @media (max-width: 640px) { .app { padding: 30px 16px 44px; } .app h1 { font-size: 28px; } .tool-header .home-link { position: static; display: block; margin: 12px 0 0; } }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <header class="tool-header">
+            <div class="tool-eyebrow">本地动画工具</div>
+            <h1>PNG序列 → 动画</h1>
+            <p class="tool-description">在浏览器中将 PNG 序列转换为 SVGA、WebP 和 GIF，并可调整内部缩放。</p>
+            <a class="home-link" href="index.html">返回工具首页</a>
+        </header>
+
+        <div class="grid">
+            <!-- 左列 -->
+            <div class="panel">
+                <div class="panel-title">
+                    📂 上传序列帧
+                    <span style="font-weight:400;font-size:13px;color:#64748b;">PNG</span>
+                </div>
+                <div class="upload-area" id="dropArea">
+                    <span class="icon">📤</span>
+                    <p>点击上传 或 拖拽PNG图片</p>
+                    <p style="font-size:12px;color:#94a3b8;">（按文件名排序，建议 frame_01.png）</p>
+                    <div class="file-list" id="fileList"></div>
+                    <input type="file" id="fileInput" multiple accept="image/png" style="display:none;" />
+                </div>
+
+                <div class="settings">
+                    <div class="group">
+                        <label>帧率 (FPS) <span class="value" id="fpsValue">15</span></label>
+                        <input type="range" id="fpsSlider" min="1" max="60" value="15" step="1" />
+                    </div>
+                    <div class="group" style="flex: 1 1 200px;">
+                        <label>输出尺寸 (宽 × 高)</label>
+                        <div class="size-group">
+                            <input type="number" id="targetWidth" value="200" min="1" step="1" style="width:70px;" />
+                            <span>×</span>
+                            <input type="number" id="targetHeight" value="200" min="1" step="1" style="width:70px;" />
+                            <span style="font-size:12px;color:#94a3b8;">px</span>
+                        </div>
+                    </div>
+                    <div class="group">
+                        <label>内部缩放 <span class="value" id="svgaScaleValue">100</span>%</label>
+                        <input type="range" id="svgaScaleSlider" min="10" max="100" value="100" step="1" />
+                    </div>
+                    <div class="group">
+                        <label>图片质量 <span class="value" id="qualityValue">85%</span></label>
+                        <input type="range" id="qualitySlider" min="0.1" max="1" value="0.85" step="0.05" />
+                    </div>
+                    <div class="group hidden" aria-hidden="true">
+                        <label>循环次数</label>
+                        <input type="number" id="loopCount" value="0" min="0" style="width:70px;" />
+                        <span style="font-size:12px;color:#94a3b8;">(0=无限)</span>
+                    </div>
+                </div>
+
+                <div class="info-grid hidden" aria-hidden="true">
+                    <div class="item"><span class="label">📦 原始总大小</span><span class="value" id="rawSize">0 KB</span></div>
+                    <div class="item"><span class="label">🧠 存储内存估算</span><span class="value" id="memEstimate">0 MB</span></div>
+                    <div class="item"><span class="label">🖼️ 帧数</span><span class="value" id="frameCount">0</span></div>
+                    <div class="item"><span class="label">📐 原始尺寸</span><span class="value" id="dimension">—</span></div>
+                </div>
+
+            </div>
+
+            <!-- 右列 -->
+            <div class="panel preview-panel">
+                <div class="panel-title preview-title">
+                    <span>🎬 预览 <span id="previewStatus" class="preview-title-status">就绪</span></span>
+                    <span class="preview-title-actions">
+                        <label for="previewBackground" class="sr-only">预览背景</label>
+                        <select id="previewBackground" class="preview-background-select" aria-label="预览背景">
+                            <option value="dark-checker" selected>深色棋盘</option>
+                            <option value="light-checker">浅色棋盘</option>
+                            <option value="white">白色</option>
+                            <option value="black">黑色</option>
+                        </select>
+                    </span>
+                </div>
+                <div class="preview-box bg-dark-checker" id="previewBox">
+                    <canvas id="previewCanvas"></canvas>
+                    <div class="placeholder" id="placeholder">
+                        <span class="big-icon">🖼️</span>
+                        上传PNG序列后自动预览
+                    </div>
+                    <div class="export-preview hidden" id="exportPreview">
+                        <div class="export-preview-media" id="exportPreviewMedia"></div>
+                    </div>
+                </div>
+
+                <div class="frame-controls" aria-label="逐帧控制">
+                    <button class="transport-button" id="btnPlayPause" type="button" disabled aria-label="播放" title="播放">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"></path></svg>
+                    </button>
+                    <button class="transport-button" id="btnPrevFrame" type="button" disabled aria-label="上一帧" title="上一帧">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h2v12H6V6zm3 6 9 6V6l-9 6z"></path></svg>
+                    </button>
+                    <button class="transport-button" id="btnNextFrame" type="button" disabled aria-label="下一帧" title="下一帧">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 6h2v12h-2V6zM6 18l9-6-9-6v12z"></path></svg>
+                    </button>
+                    <span class="frame-counter" id="frameCounter">0 / 0</span>
+                    <input class="frame-timeline" id="frameTimeline" type="range" min="0" max="0" value="0" disabled aria-label="动画进度" />
+                </div>
+
+                <div class="status-bar">
+                    <span><span class="dot gray" id="statusDot"></span><span id="statusText">等待上传</span></span>
+                    <span id="progressInfo">—</span>
+                </div>
+
+                <div class="footer-actions">
+                    <button class="btn-svga" id="exportSvga">预览SVGA</button>
+                    <!-- WEBP_PLAYBACK_PAGE: 当前导出为内嵌帧的 HTML 播放页 -->
+                    <button class="btn-webp" id="exportWebp">预览WebP</button>
+                    <button class="btn-gif" id="exportGif">预览GIF</button>
+                    <button id="btnClearFrames">清空</button>
+                </div>
+
+                <div class="export-preview-bar">
+                    <input class="export-filename" id="exportFilename" type="text" placeholder="输入文件名后下载" aria-label="导出文件名" />
+                    <button class="btn-download" id="btnDownloadExport" disabled>下载</button>
+                    <div class="export-estimate" id="exportEstimate" aria-live="polite">预估大小 — · 内存消耗 —</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ================================================================
+        // 核心逻辑
+        // ================================================================
+
+        // ---------- DOM refs ----------
+        const dropArea = document.getElementById('dropArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileList = document.getElementById('fileList');
+        const previewCanvas = document.getElementById('previewCanvas');
+        const ctx = previewCanvas.getContext('2d');
+        const placeholder = document.getElementById('placeholder');
+
+        const fpsSlider = document.getElementById('fpsSlider');
+        const fpsValue = document.getElementById('fpsValue');
+        const svgaScaleSlider = document.getElementById('svgaScaleSlider');
+        const svgaScaleValue = document.getElementById('svgaScaleValue');
+        const qualitySlider = document.getElementById('qualitySlider');
+        const qualityValue = document.getElementById('qualityValue');
+        const loopCount = document.getElementById('loopCount');
+        const targetWidthInput = document.getElementById('targetWidth');
+        const targetHeightInput = document.getElementById('targetHeight');
+
+        const rawSize = document.getElementById('rawSize');
+        const memEstimate = document.getElementById('memEstimate');
+        const frameCount = document.getElementById('frameCount');
+        const dimension = document.getElementById('dimension');
+
+        const btnPlayPause = document.getElementById('btnPlayPause');
+        const btnPrevFrame = document.getElementById('btnPrevFrame');
+        const btnNextFrame = document.getElementById('btnNextFrame');
+        const frameCounter = document.getElementById('frameCounter');
+        const frameTimeline = document.getElementById('frameTimeline');
+        const btnClearFrames = document.getElementById('btnClearFrames');
+
+        const btnExportSvga = document.getElementById('exportSvga');
+        const btnExportWebp = document.getElementById('exportWebp');
+        const btnExportGif = document.getElementById('exportGif');
+
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const progressInfo = document.getElementById('progressInfo');
+        const previewStatus = document.getElementById('previewStatus');
+        const exportPreview = document.getElementById('exportPreview');
+        const exportPreviewMedia = document.getElementById('exportPreviewMedia');
+        const exportFilename = document.getElementById('exportFilename');
+        const exportEstimate = document.getElementById('exportEstimate');
+        const btnDownloadExport = document.getElementById('btnDownloadExport');
+        const previewBackground = document.getElementById('previewBackground');
+        const previewPanel = document.querySelector('.preview-panel');
+
+        // ---------- 状态 ----------
+        let frameImages = [];          // Image 对象
+        let isPlaying = false;
+        let animFrameId = null;
+        let currentIndex = 0;
+        let lastTimestamp = 0;
+
+        let originalWidth = 0;
+        let originalHeight = 0;
+        let displayWidth = 0;    // 预览画布显示尺寸（输出尺寸）
+        let displayHeight = 0;
+        let totalRawSize = 0;
+        let dimensionMismatchCount = 0;
+        let renderCache = { key: '', canvases: [] };
+        let hasFrames = false;
+        let loadGeneration = 0;
+        let processingLock = false;
+        const MAX_FRAME_COUNT = 300;
+        const MAX_TOTAL_BYTES = 500 * 1024 * 1024;
+
+        // ---------- 辅助 ----------
+        function setStatus(text, type = 'gray') {
+            statusText.textContent = text;
+            statusDot.className = 'dot';
+            if (type === 'green') statusDot.classList.add('green');
+            else if (type === 'blue') statusDot.classList.add('blue');
+            else if (type === 'orange') statusDot.classList.add('orange');
+            else statusDot.classList.add('gray');
+        }
+
+        function setPreviewBackground(theme) {
+            const allowedThemes = ['dark-checker', 'light-checker', 'white', 'black'];
+            const nextTheme = allowedThemes.includes(theme) ? theme : 'dark-checker';
+            const backgrounds = {
+                'dark-checker': {
+                    image: 'linear-gradient(45deg, #1e293b 25%, transparent 25%), linear-gradient(-45deg, #1e293b 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #1e293b 75%), linear-gradient(-45deg, transparent 75%, #1e293b 75%)',
+                    color: '#0f172a'
+                },
+                'light-checker': {
+                    image: 'linear-gradient(45deg, #e2e8f0 25%, transparent 25%), linear-gradient(-45deg, #e2e8f0 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e2e8f0 75%), linear-gradient(-45deg, transparent 75%, #e2e8f0 75%)',
+                    color: '#f8fafc'
+                },
+                white: { image: 'none', color: '#ffffff' },
+                black: { image: 'none', color: '#000000' }
+            };
+            previewBox.classList.remove(...allowedThemes.map((name) => `bg-${name}`));
+            previewBox.classList.add(`bg-${nextTheme}`);
+            previewBox.style.setProperty('--asset-background-image', backgrounds[nextTheme].image);
+            previewBox.style.setProperty('--asset-background-color', backgrounds[nextTheme].color);
+            applyAssetBackground(previewCanvas);
+            previewBox.querySelectorAll('.export-preview-media .export-media').forEach(applyAssetBackground);
+            previewBackground.value = nextTheme;
+        }
+
+        function applyAssetBackground(element) {
+            if (!element) return;
+            const image = previewBox.style.getPropertyValue('--asset-background-image').trim() || 'none';
+            const color = previewBox.style.getPropertyValue('--asset-background-color').trim() || '#0f172a';
+            element.style.setProperty('background-image', image, 'important');
+            element.style.setProperty('background-color', color, 'important');
+            element.style.setProperty('background-size', image === 'none' ? 'auto' : '16px 16px', 'important');
+        }
+
+        function formatBytes(bytes) {
+            const value = Math.max(0, Number(bytes) || 0);
+            if (value < 1024) return `${Math.round(value)} B`;
+            if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+            if (value < 1024 * 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(2)} MB`;
+            return `${(value / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+        }
+
+        function updateInfo() {
+            frameCount.textContent = frameImages.length;
+            rawSize.textContent = (totalRawSize / 1024).toFixed(1) + ' KB';
+            if (originalWidth && originalHeight) {
+                dimension.textContent = `${originalWidth}×${originalHeight}`;
+                // 存储尺寸 = 输出尺寸 * 内部缩放
+                const outW = parseInt(targetWidthInput.value) || originalWidth;
+                const outH = parseInt(targetHeightInput.value) || originalHeight;
+                const scale = parseInt(svgaScaleSlider.value) / 100;
+                const storeW = Math.round(outW * scale);
+                const storeH = Math.round(outH * scale);
+                const mem = (storeW * storeH * 4 * frameImages.length) / (1024 * 1024);
+                memEstimate.textContent = mem.toFixed(2) + ' MB';
+            } else {
+                dimension.textContent = '—';
+                memEstimate.textContent = '0 MB';
+            }
+        }
+
+        // ---------- 尺寸联动 ----------
+        function updateScaleFromTarget() {
+            if (originalWidth === 0 || originalHeight === 0) return;
+            // 只更新预览，不改变内部缩放
+            renderCache = { key: '', canvases: [] };
+            resizeCanvas();
+            if (frameImages.length > 0) drawFrame(currentIndex);
+        }
+
+        // 内部缩放变化
+        function onSvgaScaleChange() {
+            const val = svgaScaleSlider.value;
+            svgaScaleValue.textContent = val;
+            updateInfo();
+            renderCache = { key: '', canvases: [] };
+            if (frameImages.length > 0) drawFrame(currentIndex);
+        }
+
+        targetWidthInput.addEventListener('input', updateScaleFromTarget);
+        targetHeightInput.addEventListener('input', updateScaleFromTarget);
+        svgaScaleSlider.addEventListener('input', onSvgaScaleChange);
+
+        // ---------- 文件上传 ----------
+        function handleFiles(files) {
+            const pngFiles = Array.from(files).filter(f => f.type === 'image/png' || f.name.match(/\.png$/i));
+            if (pngFiles.length === 0) {
+                setStatus('请上传PNG文件', 'orange');
+                return;
+            }
+            if (pngFiles.length > MAX_FRAME_COUNT) {
+                setStatus(`最多支持 ${MAX_FRAME_COUNT} 帧`, 'orange');
+                return;
+            }
+            const incomingBytes = pngFiles.reduce((sum, file) => sum + file.size, 0);
+            if (incomingBytes > MAX_TOTAL_BYTES) {
+                setStatus('PNG序列总大小超过 500 MB', 'orange');
+                return;
+            }
+            if (processingLock) {
+                setStatus('正在处理上一组图片，请稍候', 'orange');
+                return;
+            }
+            pngFiles.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+
+            const generation = ++loadGeneration;
+            processingLock = true;
+            dropArea.classList.add('has-files');
+            isPlaying = false;
+            cancelAnimationFrame(animFrameId);
+            currentIndex = 0;
+            frameImages = new Array(pngFiles.length);
+            originalWidth = 0;
+            originalHeight = 0;
+            dimensionMismatchCount = 0;
+            renderCache = { key: '', canvases: [] };
+            totalRawSize = 0;
+            let loaded = 0;
+            let failed = 0;
+            const total = pngFiles.length;
+
+            const finishFileLoad = (ok, fileName) => {
+                if (generation !== loadGeneration) return;
+                loaded++;
+                if (!ok) failed++;
+                fileList.innerHTML = pngFiles.map((f, i) => {
+                    const state = frameImages[i] ? '✓' : (i < loaded ? '✕' : '⏳');
+                    return `<span>${state} ${i + 1}. ${f.name} (${(f.size / 1024).toFixed(1)}KB)</span>`;
+                }).join('');
+                setStatus(`加载 ${loaded}/${total}`, failed ? 'orange' : 'blue');
+                if (loaded !== total) return;
+
+                processingLock = false;
+                frameImages = frameImages.filter(Boolean);
+                hasFrames = frameImages.length > 0;
+                if (!hasFrames) {
+                    setStatus('没有可用的PNG图片', 'orange');
+                    updateInfo();
+                    return;
+                }
+                dimensionMismatchCount = frameImages.filter(img => img.width !== originalWidth || img.height !== originalHeight).length;
+                const warnings = [];
+                if (failed) warnings.push(`跳过 ${failed} 帧`);
+                if (dimensionMismatchCount) warnings.push(`${dimensionMismatchCount} 帧尺寸不一致，将按输出尺寸处理`);
+                setStatus(warnings.length ? `就绪 ${frameImages.length} 帧，${warnings.join('，')}` : `就绪 ${total} 帧`, warnings.length ? 'orange' : 'green');
+                updateInfo();
+                previewStatus.textContent = '自动播放';
+                playAnimation();
+                updateFrameControls(0);
+                window._frameImages = frameImages;
+                window._fps = parseInt(fpsSlider.value);
+                window._quality = parseFloat(qualitySlider.value);
+                window._loop = parseInt(loopCount.value);
+                window._internalScale = parseInt(svgaScaleSlider.value) / 100;
+            };
+
+            pngFiles.forEach((file, idx) => {
+                totalRawSize += file.size;
+                const objectUrl = URL.createObjectURL(file);
+                const img = new Image();
+                img.onload = () => {
+                    URL.revokeObjectURL(objectUrl);
+                    if (generation !== loadGeneration) return;
+                    if (originalWidth === 0 || originalHeight === 0) {
+                        originalWidth = img.width;
+                        originalHeight = img.height;
+                        targetWidthInput.value = originalWidth;
+                        targetHeightInput.value = originalHeight;
+                        svgaScaleSlider.value = 100;
+                        svgaScaleValue.textContent = '100';
+                        resizeCanvas();
+                    }
+                    frameImages[idx] = img;
+                    finishFileLoad(true, file.name);
+                };
+                img.onerror = () => {
+                    URL.revokeObjectURL(objectUrl);
+                    finishFileLoad(false, file.name);
+                };
+                img.src = objectUrl;
+            });
+
+            fileList.innerHTML = pngFiles.map(f => `<span>⏳ ${f.name}</span>`).join('');
+            setStatus(`加载中... 0/${total}`, 'blue');
+        }
+
+        // ---------- 画布尺寸 ----------
+        function resizeCanvas() {
+            if (originalWidth === 0 || originalHeight === 0) return;
+            const box = document.getElementById('previewBox');
+            const rect = box.getBoundingClientRect();
+            const w = rect.width - 20;
+            const h = rect.height - 20;
+            let tw = parseInt(targetWidthInput.value) || originalWidth;
+            let th = parseInt(targetHeightInput.value) || originalHeight;
+            if (tw < 1) tw = 1;
+            if (th < 1) th = 1;
+            // 适应容器显示（保持宽高比）
+            let dw = tw;
+            let dh = th;
+            if (dw > w) { dh = dh * (w / dw);
+                dw = w; }
+            if (dh > h) { dw = dw * (h / dh);
+                dh = h; }
+            displayWidth = Math.floor(dw);
+            displayHeight = Math.floor(dh);
+            previewCanvas.width = displayWidth;
+            previewCanvas.height = displayHeight;
+            previewCanvas.style.width = displayWidth + 'px';
+            previewCanvas.style.height = displayHeight + 'px';
+            previewCanvas.style.position = 'absolute';
+            previewCanvas.style.left = '50%';
+            previewCanvas.style.top = '50%';
+            previewCanvas.style.transform = 'translate(-50%, -50%)';
+            placeholder.style.display = 'none';
+            previewCanvas.style.display = 'block';
+        }
+
+        // ---------- 播放控制 ----------
+        function frameIcon(name) {
+            const paths = {
+                play: '<path d="M8 5v14l11-7z"></path>',
+                pause: '<path d="M6 5h4v14H6V5zm8 0h4v14h-4V5z"></path>'
+            };
+            return `<svg viewBox="0 0 24 24" aria-hidden="true">${paths[name]}</svg>`;
+        }
+
+        function setFramePlayButton(playing) {
+            btnPlayPause.innerHTML = frameIcon(playing ? 'pause' : 'play');
+            btnPlayPause.setAttribute('aria-label', playing ? '暂停' : '播放');
+            btnPlayPause.title = playing ? '暂停' : '播放';
+        }
+
+        function updateFrameControls(frame = currentIndex, totalOverride = frameImages.length, playingOverride = isPlaying) {
+            const total = totalOverride;
+            const safeFrame = total ? Math.max(0, Math.min(Number(frame) || 0, total - 1)) : 0;
+            frameTimeline.max = Math.max(total - 1, 0);
+            frameTimeline.value = safeFrame;
+            frameTimeline.disabled = !total;
+            btnPlayPause.disabled = !total;
+            btnPrevFrame.disabled = !total;
+            btnNextFrame.disabled = !total;
+            frameCounter.textContent = total ? `${safeFrame + 1} / ${total}` : '0 / 0';
+            const percent = total > 1 ? (safeFrame / (total - 1)) * 100 : 0;
+            frameTimeline.style.setProperty('--progress', `${percent}%`);
+            setFramePlayButton(playingOverride);
+        }
+
+        function playerPlay(player) {
+            if (!player) return;
+            if (player.playerHasStarted && typeof player.resume === 'function') {
+                player.resume();
+            } else if (typeof player.start === 'function') {
+                // svga-web 2.4：mount 后用 start，暂停后用 resume。
+                player.start();
+            } else if (typeof player.startAnimation === 'function') {
+                // 兼容旧版 svgaplayerweb。
+                player.startAnimation(player.videoItem);
+            }
+        }
+
+        function playerPause(player) {
+            if (!player) return;
+            if (typeof player.pauseAnimation === 'function') player.pauseAnimation();
+            else if (typeof player.pause === 'function') player.pause();
+        }
+
+        function drawExportWebpFrame(frame) {
+            if (!currentExport?.webpImages || !currentExport.webpCtx) return;
+            const safeFrame = Math.max(0, Math.min(Number(frame) || 0, currentExport.webpImages.length - 1));
+            const image = currentExport.webpImages[safeFrame];
+            currentExport.webpCtx.clearRect(0, 0, currentExport.width, currentExport.height);
+            if (image && image.complete) {
+                currentExport.webpCtx.drawImage(image, 0, 0, currentExport.width, currentExport.height);
+            }
+            currentExport.exportFrame = safeFrame;
+            updateFrameControls(safeFrame, currentExport.frameCount, currentExport.exportPlaying);
+        }
+
+        function drawExportGifFrame(frame) {
+            if (!currentExport?.gifImages || !currentExport.gifCtx) return;
+            const safeFrame = Math.max(0, Math.min(Number(frame) || 0, currentExport.gifImages.length - 1));
+            const image = currentExport.gifImages[safeFrame];
+            currentExport.gifCtx.clearRect(0, 0, currentExport.width, currentExport.height);
+            if (image && image.complete) {
+                currentExport.gifCtx.drawImage(image, 0, 0, currentExport.width, currentExport.height);
+            }
+            currentExport.exportFrame = safeFrame;
+            updateFrameControls(safeFrame, currentExport.frameCount, currentExport.exportPlaying);
+        }
+
+        function pauseExportPreview() {
+            if (!currentExport) return;
+            currentExport.exportPlaying = false;
+            if (currentExport.type === 'svga') playerPause(currentExport.player);
+            if (currentExport.type === 'webp' && currentExport.rafId) {
+                cancelAnimationFrame(currentExport.rafId);
+                currentExport.rafId = null;
+            }
+            if (currentExport.type === 'gif' && currentExport.rafId) {
+                cancelAnimationFrame(currentExport.rafId);
+                currentExport.rafId = null;
+                if (currentExport.nativeGif) currentExport.nativeGif.style.display = 'none';
+                if (currentExport.gifCanvas) {
+                    currentExport.gifCanvas.style.display = 'block';
+                    drawExportGifFrame(currentExport.exportFrame);
+                }
+            }
+            if (currentExport.syncRafId) {
+                cancelAnimationFrame(currentExport.syncRafId);
+                currentExport.syncRafId = null;
+            }
+            setFramePlayButton(false);
+        }
+
+        function playExportPreview() {
+            if (!currentExport || !currentExport.frameCount) return;
+            currentExport.exportPlaying = true;
+            if (currentExport.type === 'svga') {
+                playerPlay(currentExport.player);
+                if (typeof currentExport.startSvgaProgressSync === 'function') currentExport.startSvgaProgressSync();
+            } else if (currentExport.type === 'webp' && typeof currentExport.startWebpLoop === 'function') {
+                currentExport.startWebpLoop();
+            } else if (currentExport.type === 'gif' && typeof currentExport.startGifLoop === 'function') {
+                currentExport.startGifLoop();
+                if (currentExport.nativeGif) currentExport.nativeGif.style.display = 'block';
+                if (currentExport.gifCanvas) currentExport.gifCanvas.style.display = 'none';
+            }
+            setFramePlayButton(true);
+        }
+
+        function showExportFrame(frame) {
+            if (!currentExport || !currentExport.frameCount) return;
+            const safeFrame = Math.max(0, Math.min(Number(frame) || 0, currentExport.frameCount - 1));
+            pauseExportPreview();
+            if (currentExport.type === 'svga' && currentExport.player) {
+                const player = currentExport.player;
+                if (typeof player.stepToFrame === 'function') {
+                    player.stepToFrame(safeFrame, false);
+                } else if (player.renderer) {
+                    player.currentFrame = safeFrame;
+                    const item = player.videoItem;
+                    if (item) player.renderer.drawFrame(item.images, item.sprites, item.dynamicElements, safeFrame);
+                }
+            } else if (currentExport.type === 'webp') {
+                drawExportWebpFrame(safeFrame);
+            } else if (currentExport.type === 'gif') {
+                if (currentExport.nativeGif) currentExport.nativeGif.style.display = 'none';
+                if (currentExport.gifCanvas) currentExport.gifCanvas.style.display = 'block';
+                drawExportGifFrame(safeFrame);
+            }
+            currentExport.exportFrame = safeFrame;
+            updateFrameControls(safeFrame, currentExport.frameCount, false);
+        }
+
+        function isExportPreviewPlaying() {
+            if (!currentExport) return false;
+            if (currentExport.type === 'svga' && currentExport.player?.animator) {
+                return currentExport.player.animator.isRunning === true;
+            }
+            return currentExport.exportPlaying === true;
+        }
+
+        function togglePreviewPlayback() {
+            if (!currentExport) {
+                if (isPlaying || btnPlayPause.getAttribute('aria-label') === '暂停') pauseOnly();
+                else playAnimation();
+                return;
+            }
+            const buttonSaysPlaying = btnPlayPause.getAttribute('aria-label') === '暂停';
+            if (buttonSaysPlaying || isExportPreviewPlaying()) pauseExportPreview();
+            else playExportPreview();
+        }
+
+        function pauseOnly() {
+            isPlaying = false;
+            cancelAnimationFrame(animFrameId);
+            setFramePlayButton(false);
+            previewStatus.textContent = '暂停';
+        }
+
+        function playAnimation() {
+            if (frameImages.length === 0) return;
+            if (isPlaying) return;
+            isPlaying = true;
+            setFramePlayButton(true);
+            previewStatus.textContent = '播放中';
+            setStatus('播放中', 'blue');
+            lastTimestamp = performance.now();
+            cancelAnimationFrame(animFrameId);
+            loop();
+        }
+
+        function loop() {
+            if (!isPlaying) return;
+            const now = performance.now();
+            const delta = now - lastTimestamp;
+            const interval = 1000 / parseInt(fpsSlider.value);
+            if (delta >= interval) {
+                lastTimestamp = now;
+                drawFrame(currentIndex);
+                updateFrameControls(currentIndex);
+                currentIndex = (currentIndex + 1) % frameImages.length;
+                progressInfo.textContent = `帧 ${currentIndex}/${frameImages.length}`;
+            }
+            animFrameId = requestAnimationFrame(loop);
+        }
+
+        function drawFrame(index) {
+            const img = frameImages[index];
+            if (!img) return;
+            // 获取输出尺寸和内部缩放
+            const outW = parseInt(targetWidthInput.value) || originalWidth;
+            const outH = parseInt(targetHeightInput.value) || originalHeight;
+            const scale = parseInt(svgaScaleSlider.value) / 100;
+            const storeW = Math.round(outW * scale);
+            const storeH = Math.round(outH * scale);
+            if (storeW < 1 || storeH < 1) return;
+
+            // 缓存缩放后的帧，避免播放时每一帧重复创建 Canvas。
+            const cacheKey = `${storeW}x${storeH}`;
+            if (renderCache.key !== cacheKey) renderCache = { key: cacheKey, canvases: [] };
+            let offCanvas = renderCache.canvases[index];
+            if (!offCanvas) {
+                offCanvas = document.createElement('canvas');
+                offCanvas.width = storeW;
+                offCanvas.height = storeH;
+                const offCtx = offCanvas.getContext('2d');
+                offCtx.imageSmoothingEnabled = true;
+                offCtx.imageSmoothingQuality = 'high';
+                offCtx.drawImage(img, 0, 0, storeW, storeH);
+                renderCache.canvases[index] = offCanvas;
+            }
+
+            // 绘制到主canvas（拉伸到输出尺寸）
+            ctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+            // 注意预览canvas尺寸可能因为容器缩放而不同于输出尺寸，但我们要保持比例显示
+            // 我们绘制时拉伸到整个预览canvas，保持宽高比由css object-fit:contain控制，但我们直接绘制填满canvas
+            // 为了不拉伸变形，我们按预览canvas宽高比绘制，但这里简单绘制填满，因为预览canvas已经按比例缩放了
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(offCanvas, 0, 0, previewCanvas.width, previewCanvas.height);
+        }
+
+        function pauseAnimation() {
+            pauseOnly();
+            setStatus('暂停', 'orange');
+        }
+
+        function stopAnimation() {
+            isPlaying = false;
+            cancelAnimationFrame(animFrameId);
+            setFramePlayButton(false);
+            previewStatus.textContent = '停止';
+            progressInfo.textContent = '—';
+            if (frameImages.length > 0) {
+                drawFrame(0);
+                currentIndex = 0;
+                updateFrameControls(0);
+            }
+            setStatus('已停止', 'gray');
+        }
+
+        function showFrameAt(frame) {
+            if (frameImages.length === 0) return;
+            pauseOnly();
+            currentIndex = Math.max(0, Math.min(Number(frame) || 0, frameImages.length - 1));
+            drawFrame(currentIndex);
+            updateFrameControls(currentIndex);
+            previewStatus.textContent = '暂停';
+            setStatus('暂停', 'orange');
+        }
+
+        // ================================================================
+        // GIF Worker 兼容 (解决 file:// 直接双击打开时 Worker 跨域失败)
+        // ================================================================
+        let gifWorkerScript = 'https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js';
+        let gifWorkerReady = Promise.resolve();
+        try {
+            gifWorkerReady = fetch(gifWorkerScript)
+                .then(r => r.text())
+                .then(t => { gifWorkerScript = URL.createObjectURL(new Blob([t], { type: 'application/javascript' })); })
+                .catch(() => {});
+        } catch (e) {}
+
+        // ================================================================
+        // SVGA Protobuf 编码 (生成标准 movie.binary，兼容主流 SVGA 播放器)
+        // 字段号严格对应 com.opensource.svga.MovieEntity
+        // ================================================================
+        function _wVarint(v) {
+            const out = [];
+            v = v >>> 0;
+            while (v > 0x7f) { out.push((v & 0x7f) | 0x80); v >>>= 7; }
+            out.push(v & 0x7f);
+            return out;
+        }
+        function _wTag(field, wt) { return _wVarint((field << 3) | wt); }
+        function _wF32(f) { const b = new ArrayBuffer(4); new DataView(b).setFloat32(0, f, true); return Array.from(new Uint8Array(b)); }
+        function _wU8(str) { return Array.from(new TextEncoder().encode(str)); }
+        function _wBytesField(field, data) { return [].concat(_wTag(field, 2), _wVarint(data.length), Array.from(data)); }
+        function _wVarintField(field, v) { return [].concat(_wTag(field, 0), _wVarint(v)); }
+        function _wF32Field(field, f) { return [].concat(_wTag(field, 5), _wF32(f)); }
+        function _wMsgField(field, sub) { return _wBytesField(field, sub); }
+        function _wConcat(arrs) {
+            let len = 0; arrs.forEach(a => len += a.length);
+            const out = new Uint8Array(len); let o = 0;
+            arrs.forEach(a => { out.set(a, o); o += a.length; });
+            return out;
+        }
+        function _encTransform(a, b, c, d, tx, ty) {
+            return _wConcat([_wF32Field(1, a), _wF32Field(2, b), _wF32Field(3, c), _wF32Field(4, d), _wF32Field(5, tx), _wF32Field(6, ty)]);
+        }
+        function _encLayout(x, y, width, height) {
+            return _wConcat([_wF32Field(1, x), _wF32Field(2, y), _wF32Field(3, width), _wF32Field(4, height)]);
+        }
+        function _encFrame(alpha, layoutBytes, trBytes) {
+            return _wConcat([_wF32Field(1, alpha), _wMsgField(2, layoutBytes), _wMsgField(3, trBytes)]);
+        }
+        function _encSprite(key, frameBytesArr) {
+            const parts = [_wBytesField(1, _wU8(key))];
+            frameBytesArr.forEach(fb => parts.push(_wMsgField(2, fb)));
+            return _wConcat(parts);
+        }
+        function _encParams(vw, vh, fps, frames) {
+            return _wConcat([_wF32Field(1, vw), _wF32Field(2, vh), _wVarintField(3, fps), _wVarintField(4, frames)]);
+        }
+        function _encImageEntry(key, bytes) {
+            return _wConcat([_wBytesField(1, _wU8(key)), _wBytesField(2, Array.from(bytes))]);
+        }
+        function _encMovie(version, paramsBytes, imageEntries, spritesBytes) {
+            const parts = [_wBytesField(1, _wU8(version)), _wMsgField(2, paramsBytes)];
+            imageEntries.forEach(e => parts.push(_wMsgField(3, e)));
+            spritesBytes.forEach(s => parts.push(_wMsgField(4, s)));
+            return _wConcat(parts);
+        }
+        function _downloadBlob(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = filename;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // ================================================================
+        // 导出功能
+        // ================================================================
+
+        function getTargetSize() {
+            let w = parseInt(targetWidthInput.value) || originalWidth;
+            let h = parseInt(targetHeightInput.value) || originalHeight;
+            if (w < 1) w = 1;
+            if (h < 1) h = 1;
+            return { width: w, height: h };
+        }
+
+        function getStoreSize() {
+            const out = getTargetSize();
+            const scale = parseInt(svgaScaleSlider.value) / 100;
+            return {
+                width: Math.round(out.width * scale),
+                height: Math.round(out.height * scale)
+            };
+        }
+
+        function canvasToBytes(canvas, type = 'image/png', quality) {
+            return new Promise((resolve, reject) => {
+                canvas.toBlob((blob) => {
+                    if (!blob) {
+                        reject(new Error('浏览器无法编码 Canvas 图片'));
+                        return;
+                    }
+                    blob.arrayBuffer()
+                        .then(buffer => resolve(new Uint8Array(buffer)))
+                        .catch(reject);
+                }, type, quality);
+            });
+        }
+
+        // ---------- 导出 SVGA ----------
+        async function exportSVGA() {
+            if (processingLock) {
+                setStatus('正在处理图片，请稍候再导出', 'orange');
+                return;
+            }
+            if (frameImages.length === 0) {
+                alert('请先上传PNG序列');
+                return;
+            }
+            if (typeof pako === 'undefined' || typeof JSZip === 'undefined') {
+                alert('SVGA 依赖库未加载（CDN 被拦截或离线），请联网后重试。');
+                return;
+            }
+            setStatus('生成 SVGA...', 'blue');
+            const fps = parseInt(fpsSlider.value);
+            const out = getTargetSize();
+            const store = getStoreSize();
+            if (store.width < 1 || store.height < 1) {
+                alert('存储尺寸太小，请增大输出尺寸或内部缩放');
+                return;
+            }
+
+            const scaleX = out.width / store.width;
+            const scaleY = out.height / store.height;
+            const total = frameImages.length;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = store.width;
+            canvas.height = store.height;
+            const cctx = canvas.getContext('2d');
+
+            try {
+                const imagesMap = {};
+                for (let idx = 0; idx < total; idx++) {
+                    cctx.clearRect(0, 0, store.width, store.height);
+                    cctx.drawImage(frameImages[idx], 0, 0, store.width, store.height);
+                    imagesMap[String(idx + 1)] = await canvasToBytes(canvas);
+                    setStatus('编码帧 ' + (idx + 1) + '/' + total, 'blue');
+                }
+                // 每帧 = 一个 sprite；sprite 的 frames 长度 = 总帧数，
+                // 仅在对应全局帧可见(alpha=1)，其余帧透明(alpha=0)，拼成序列动画。
+                const spritesBytes = [];
+                for (let i = 0; i < total; i++) {
+                    const frameBytesArr = [];
+                    for (let j = 0; j < total; j++) {
+                        const alpha = (j === i) ? 1.0 : 0.0;
+                        const tr = _encTransform(scaleX, 0, 0, scaleY, 0, 0);
+                        const layout = _encLayout(0, 0, store.width, store.height);
+                        frameBytesArr.push(_encFrame(alpha, layout, tr));
+                    }
+                    spritesBytes.push(_encSprite(String(i + 1), frameBytesArr));
+                }
+                const paramsBytes = _encParams(out.width, out.height, fps, total);
+                const imageEntries = [];
+                for (const k in imagesMap) imageEntries.push(_encImageEntry(k, imagesMap[k]));
+                const movieBytes = _encMovie('2.0.0', paramsBytes, imageEntries, spritesBytes);
+
+                // SVGA 2.x 使用 zlib 包装的 DEFLATE 数据（示例文件头为 78 9c）。
+                const compressedMovie = pako.deflate(movieBytes);
+                // SVGA 2.x 文件本身就是压缩后的 movie.binary，不再额外套 ZIP。
+                const blob = new Blob([compressedMovie], { type: 'application/octet-stream' });
+                showExportPreview('svga', {
+                    blob: blob,
+                    filename: 'animation_' + Date.now() + '.svga',
+                    width: out.width,
+                    height: out.height,
+                    memoryWidth: store.width,
+                    memoryHeight: store.height,
+                    frameCount: total
+                });
+            } catch (err) {
+                setStatus('SVGA 图片处理失败: ' + err.message, 'orange');
+            }
+        }
+
+        // ---------- 导出 WebP 动画 (HTML) ----------
+        function exportWebP() {
+            if (processingLock) {
+                setStatus('正在处理图片，请稍候再导出', 'orange');
+                return;
+            }
+            if (frameImages.length === 0) {
+                alert('请先上传PNG序列');
+                return;
+            }
+            setStatus('生成 WebP HTML...', 'blue');
+            const fps = parseInt(fpsSlider.value);
+            const loop = parseInt(loopCount.value) === 0 ? 'infinite' : parseInt(loopCount.value);
+            const quality = parseFloat(qualitySlider.value);
+            const store = getStoreSize();
+            const w = store.width,
+                h = store.height;
+
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const cctx = canvas.getContext('2d');
+
+            const frameDataURLs = [];
+            let processed = 0;
+            const total = frameImages.length;
+
+            function processNext(index) {
+                if (index >= total) {
+                    buildWebPHTML(frameDataURLs);
+                    return;
+                }
+                const img = frameImages[index];
+                cctx.clearRect(0, 0, w, h);
+                cctx.drawImage(img, 0, 0, w, h);
+                canvas.toBlob((blob) => {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        frameDataURLs.push(e.target.result);
+                        processed++;
+                        setStatus(`编码 WebP ${processed}/${total}`, 'blue');
+                        processNext(index + 1);
+                    };
+                    reader.readAsDataURL(blob);
+                }, 'image/webp', quality);
+            }
+
+            function buildWebPHTML(urls) {
+                const html = `<!DOCTYPE html>
+        <html><head><meta charset="UTF-8"><title>WebP 动画</title>
+        <style>body{margin:0;display:flex;justify-content:center;align-items:center;height:100vh;background:#222;}
+        canvas{max-width:90vw;max-height:90vh;}</style>
+        </head><body>
+        <canvas id="animCanvas"></canvas>
+        <script>
+        const frames = [${urls.map(u=>`'${u}'`).join(',')}];
+        const fps = ${fps};
+        const loop = ${typeof loop === 'number' ? loop : 'Infinity'};
+        const canvas = document.getElementById('animCanvas');
+            const ctx = canvas.getContext('2d');
+        let images=[], loaded=0;
+        function loadNext(i){
+            if(i>=frames.length){ start(); return; }
+            const img=new Image();
+            img.onload=()=>{ images[i]=img; loaded++; loadNext(i+1); };
+            img.onerror=()=>loadNext(i+1);
+            img.src=frames[i];
+        }
+        function start(){
+            canvas.width=images[0].width;
+            canvas.height=images[0].height;
+            let frame=0, count=0;
+            function draw(){
+                ctx.clearRect(0,0,canvas.width,canvas.height);
+                ctx.drawImage(images[frame],0,0);
+                frame=(frame+1)%images.length;
+                if(frame===0 && loop!==Infinity){ count++; if(count>=loop) return; }
+                setTimeout(draw, 1000/fps);
+            }
+            draw();
+        }
+        loadNext(0);
+        <\/script>
+        </body></html>`;
+                showExportPreview('webp', {
+                    frameDataURLs: urls,
+                    html: html,
+                    filename: 'webp_animation_' + Date.now() + '.html',
+                    width: w,
+                    height: h,
+                    fps: fps,
+                    memoryWidth: w,
+                    memoryHeight: h,
+                    frameCount: total
+                });
+            }
+
+            processNext(0);
+        }
+
+        // ---------- 导出 GIF ----------
+        async function exportGif() {
+            if (processingLock) {
+                setStatus('正在处理图片，请稍候再导出', 'orange');
+                return;
+            }
+            if (frameImages.length === 0) {
+                alert('请先上传PNG序列');
+                return;
+            }
+            if (typeof GIF === 'undefined') {
+                alert('gif.js 未加载（CDN 被拦截或离线）。请联网后重试，或用本地服务器打开本页。');
+                return;
+            }
+            await gifWorkerReady;
+            setStatus('生成 GIF...', 'blue');
+            const fps = parseInt(fpsSlider.value);
+            const quality = Math.min(20, Math.max(1, Math.round(parseFloat(qualitySlider.value) * 20)));
+            const loop = parseInt(loopCount.value) === 0 ? 0 : parseInt(loopCount.value);
+            const useAlphaDither = true;
+            const store = getStoreSize();
+            const w = store.width,
+                h = store.height;
+
+            const gif = new GIF({
+                workers: 2,
+                workerScript: gifWorkerScript,
+                quality: quality,
+                width: w,
+                height: h,
+                loop: loop,
+                // GIF 只支持单色透明；用不易出现在素材中的颜色作为透明键色。
+                background: '#00ff01',
+                transparent: 0x00FF01
+            });
+
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const cctx = canvas.getContext('2d');
+            cctx.imageSmoothingEnabled = true;
+            cctx.imageSmoothingQuality = 'high';
+
+            function prepareGifFrame(image) {
+                cctx.clearRect(0, 0, w, h);
+                cctx.drawImage(image, 0, 0, w, h);
+                const pixels = cctx.getImageData(0, 0, w, h);
+                const data = pixels.data;
+                const alphaErrors = useAlphaDither ? new Float32Array(w * h) : null;
+                for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                        const pixelIndex = y * w + x;
+                        const i = pixelIndex * 4;
+                    const alpha = data[i + 3];
+                    const adjustedAlpha = useAlphaDither
+                        ? Math.max(0, Math.min(255, alpha + alphaErrors[pixelIndex]))
+                        : alpha;
+                    const opaque = adjustedAlpha >= 128;
+                    if (useAlphaDither) {
+                        const error = adjustedAlpha - (opaque ? 255 : 0);
+                        if (x + 1 < w) alphaErrors[pixelIndex + 1] += error * 7 / 16;
+                        if (y + 1 < h) {
+                            if (x > 0) alphaErrors[pixelIndex + w - 1] += error * 3 / 16;
+                            alphaErrors[pixelIndex + w] += error * 5 / 16;
+                            if (x + 1 < w) alphaErrors[pixelIndex + w + 1] += error * 1 / 16;
+                        }
+                    }
+                    if (!opaque) {
+                        // GIF 只有二值透明度，透明像素统一使用透明键色。
+                        data[i] = 0;
+                        data[i + 1] = 255;
+                        data[i + 2] = 1;
+                        data[i + 3] = 255;
+                    } else if (alpha < 255) {
+                        // 还原半透明边缘的原始 RGB，避免透明键色渗入形成绿边。
+                        const scale = 255 / Math.max(alpha, 1);
+                        data[i] = Math.min(255, Math.round(data[i] * scale));
+                        data[i + 1] = Math.min(255, Math.round(data[i + 1] * scale));
+                        data[i + 2] = Math.min(255, Math.round(data[i + 2] * scale));
+                        data[i + 3] = 255;
+                    }
+                    }
+                }
+                cctx.putImageData(pixels, 0, 0);
+            }
+
+            let added = 0;
+            const total = frameImages.length;
+
+            function addNext(idx) {
+                if (idx >= total) {
+                    gif.render();
+                    setStatus('GIF 渲染中...', 'blue');
+                    return;
+                }
+                const img = frameImages[idx];
+                prepareGifFrame(img);
+                gif.addFrame(cctx, { copy: true, delay: 1000 / fps });
+                added++;
+                setStatus(`添加帧 ${added}/${total}`, 'blue');
+                addNext(idx + 1);
+            }
+
+            gif.on('progress', (p) => {
+                progressInfo.textContent = `GIF 渲染 ${Math.round(p*100)}%`;
+            });
+
+            gif.on('abort', (err) => {
+                setStatus('GIF 渲染中断：Worker 初始化失败。请用本地服务器(http)打开本页，或确认可访问 CDN。', 'orange');
+                console.error('GIF abort:', err);
+            });
+
+            gif.on('finished', (blob) => {
+                showExportPreview('gif', {
+                    blob: blob,
+                    filename: 'animation_' + Date.now() + '.gif',
+                    memoryWidth: w,
+                    memoryHeight: h,
+                    frameCount: total
+                });
+            });
+
+            addNext(0);
+        }
+
+        // ---------- 通用下载 ----------
+        function downloadFile(content, filename, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // ================================================================
+        // 导出预览（生成后先预览，满意再下载）
+        // ================================================================
+        let currentExport = null;
+
+        function loadDecodedGifImage(dataUrl) {
+            return new Promise((resolve, reject) => {
+                const image = new Image();
+                image.onload = () => resolve(image);
+                image.onerror = reject;
+                image.src = dataUrl;
+            });
+        }
+
+        async function decodeGeneratedGif(blob) {
+            const bytes = await blob.arrayBuffer();
+            if (typeof ImageDecoder === 'function') {
+                try {
+                    const nativeDecoder = new ImageDecoder({ data: bytes, type: 'image/gif' });
+                    await nativeDecoder.completed;
+                    const track = nativeDecoder.tracks.selectedTrack;
+                    if (!track) throw new Error('原生 GIF 轨道不可用');
+                    const width = track.codedWidth;
+                    const height = track.codedHeight;
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    const images = [];
+                    const delays = [];
+                    for (let index = 0; index < track.frameCount; index++) {
+                        const decoded = await nativeDecoder.decode({ frameIndex: index });
+                        const frame = decoded.image;
+                        ctx.clearRect(0, 0, width, height);
+                        ctx.drawImage(frame, 0, 0, width, height);
+                        images.push(await loadDecodedGifImage(canvas.toDataURL('image/png')));
+                        delays.push(Math.max(20, Math.round((frame.duration || 100000) / 1000)));
+                        frame.close();
+                    }
+                    nativeDecoder.close();
+                    return { images, delays, width, height, decoder: 'native' };
+                } catch (error) {
+                    console.warn('原生 GIF 解码不可用，切换本地解码器:', error);
+                }
+            }
+
+            const decoder = typeof gifuct !== 'undefined'
+                ? gifuct
+                : (typeof parseGIF === 'function' && typeof decompressFrames === 'function'
+                    ? { parseGIF, decompressFrames }
+                    : null);
+            if (!decoder || typeof decoder.parseGIF !== 'function' || typeof decoder.decompressFrames !== 'function') {
+                throw new Error('GIF 解码器未加载');
+            }
+            const parsed = decoder.parseGIF(bytes);
+            const frames = decoder.decompressFrames(parsed, true);
+            if (!frames.length) throw new Error('GIF 没有可预览的帧');
+
+            const width = parsed.lsd.width;
+            const height = parsed.lsd.height;
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            const patchCanvas = document.createElement('canvas');
+            const patchCtx = patchCanvas.getContext('2d');
+            ctx.clearRect(0, 0, width, height);
+            const images = [];
+            const delays = [];
+            let restorePixels = null;
+
+            for (const frame of frames) {
+                if (restorePixels) {
+                    ctx.putImageData(restorePixels, 0, 0);
+                    restorePixels = null;
+                }
+                if (frame.disposalType === 3) {
+                    restorePixels = ctx.getImageData(0, 0, width, height);
+                }
+                const patch = new ImageData(
+                    new Uint8ClampedArray(frame.patch),
+                    frame.dims.width,
+                    frame.dims.height
+                );
+                patchCanvas.width = frame.dims.width;
+                patchCanvas.height = frame.dims.height;
+                patchCtx.putImageData(patch, 0, 0);
+                // 透明像素必须按 alpha 叠加，不能直接 putImageData 到主画布，
+                // 否则会错误清除 GIF 前一帧中应保留的内容。
+                ctx.drawImage(patchCanvas, frame.dims.left, frame.dims.top);
+                images.push(await loadDecodedGifImage(canvas.toDataURL('image/png')));
+                delays.push(Math.max(20, Number(frame.delay) || 100));
+                if (frame.disposalType === 2) {
+                    ctx.clearRect(0, 0, width, height);
+                } else if (frame.disposalType === 3 && restorePixels) {
+                    ctx.putImageData(restorePixels, 0, 0);
+                    restorePixels = null;
+                }
+            }
+            return { images, delays, width, height, decoder: 'gifuct' };
+        }
+
+        function cleanupCurrentExport() {
+            if (!currentExport) return;
+            if (currentExport.player) {
+                try { currentExport.player.stopAnimation(); } catch (e) {}
+                try { currentExport.player.clear(); } catch (e) {}
+            }
+            if (currentExport.rafId) cancelAnimationFrame(currentExport.rafId);
+            if (currentExport.syncRafId) cancelAnimationFrame(currentExport.syncRafId);
+            if (currentExport.url) URL.revokeObjectURL(currentExport.url);
+            currentExport = null;
+        }
+
+        function showExportPreview(type, data) {
+            cleanupCurrentExport();
+            exportPreviewMedia.innerHTML = '';
+            currentExport = {
+                type: type,
+                frameCount: Number(data.frameCount) || 0,
+                exportFrame: 0,
+                exportPlaying: false,
+                playerHasStarted: false
+            };
+            exportFilename.value = data.filename.replace(/\.(svga|gif|html)$/i, '');
+            btnDownloadExport.disabled = false;
+            const fileBytes = type === 'webp'
+                ? new Blob([data.html || '']).size
+                : (data.blob ? data.blob.size : 0);
+            const memoryWidth = data.memoryWidth || data.width || getStoreSize().width;
+            const memoryHeight = data.memoryHeight || data.height || getStoreSize().height;
+            const frameTotal = data.frameCount || frameImages.length;
+            const memoryBytes = memoryWidth * memoryHeight * 4 * frameTotal;
+            exportEstimate.textContent = `预估大小 ${formatBytes(fileBytes)} · 内存消耗 ${formatBytes(memoryBytes)}`;
+
+            if (type === 'gif') {
+                const url = URL.createObjectURL(data.blob);
+                currentExport.url = url;
+                currentExport.blob = data.blob;
+                currentExport.filename = data.filename;
+                previewStatus.textContent = 'GIF 解码预览';
+                setStatus('GIF 已生成，正在解码真实效果...', 'blue');
+                progressInfo.textContent = '解码中';
+
+                const startGifPreview = (decoded) => {
+                    if (!currentExport || currentExport.type !== 'gif') return;
+                    const canvas = document.createElement('canvas');
+                    canvas.className = 'export-media';
+                    canvas.width = decoded.width;
+                    canvas.height = decoded.height;
+                    canvas.style.aspectRatio = canvas.width + ' / ' + canvas.height;
+                    const ctxg = canvas.getContext('2d');
+                    const nativeGif = document.createElement('img');
+                    nativeGif.className = 'export-media';
+                    nativeGif.alt = 'GIF 真实效果预览';
+                    nativeGif.src = currentExport.url;
+                    nativeGif.style.aspectRatio = decoded.width + ' / ' + decoded.height;
+                    currentExport.width = decoded.width;
+                    currentExport.height = decoded.height;
+                    currentExport.nativeGif = nativeGif;
+                    currentExport.gifCanvas = canvas;
+                    currentExport.gifImages = decoded.images;
+                    currentExport.gifDelays = decoded.delays;
+                    currentExport.gifCtx = ctxg;
+                    currentExport.frameCount = decoded.images.length;
+                    let gifIndex = 0;
+                    let gifLast = 0;
+                    const gifLoop = (timestamp) => {
+                        if (!currentExport || currentExport.type !== 'gif' || !currentExport.exportPlaying) return;
+                        const delay = currentExport.gifDelays[gifIndex] || 100;
+                        if (timestamp - gifLast >= delay) {
+                            gifLast = timestamp;
+                            drawExportGifFrame(gifIndex);
+                            gifIndex = (gifIndex + 1) % currentExport.frameCount;
+                        }
+                        currentExport.rafId = requestAnimationFrame(gifLoop);
+                    };
+                    currentExport.startGifLoop = () => {
+                        gifIndex = currentExport.exportFrame || 0;
+                        gifLast = performance.now();
+                        cancelAnimationFrame(currentExport.rafId);
+                        nativeGif.style.display = 'block';
+                        canvas.style.display = 'none';
+                        currentExport.rafId = requestAnimationFrame(gifLoop);
+                    };
+                    exportPreviewMedia.appendChild(nativeGif);
+                    exportPreviewMedia.appendChild(canvas);
+                    applyAssetBackground(nativeGif);
+                    applyAssetBackground(canvas);
+                    canvas.style.display = 'none';
+                    updateFrameControls(0, currentExport.frameCount, false);
+                    drawExportGifFrame(0);
+                    previewStatus.textContent = 'GIF 真实预览';
+                    setStatus('GIF 真实效果预览，满意后点“下载”', 'green');
+                    progressInfo.textContent = '完成';
+                    currentExport.exportPlaying = true;
+                    currentExport.startGifLoop();
+                };
+
+                decodeGeneratedGif(data.blob).then(startGifPreview).catch((error) => {
+                    console.error('GIF 真实文件解码失败:', error);
+                    if (!currentExport || currentExport.type !== 'gif') return;
+                    // 解码器失败时仍只展示实际生成的 GIF 文件，绝不退回源 PNG 帧。
+                    const nativeGif = document.createElement('img');
+                    nativeGif.className = 'export-media';
+                    nativeGif.alt = 'GIF 实际文件预览';
+                    nativeGif.src = currentExport.url;
+                    currentExport.nativeGif = nativeGif;
+                    currentExport.frameCount = 0;
+                    currentExport.exportPlaying = false;
+                    exportPreviewMedia.appendChild(nativeGif);
+                    updateFrameControls(0, 0, false);
+                    previewStatus.textContent = 'GIF 实际文件预览';
+                    setStatus('GIF 已生成，当前浏览器无法逐帧解码；已显示实际 GIF 文件', 'orange');
+                    progressInfo.textContent = '完成';
+                });
+            } else if (type === 'svga') {
+                const canvas = document.createElement('canvas');
+                canvas.className = 'export-media';
+                canvas.width = data.width;
+                canvas.height = data.height;
+                canvas.style.aspectRatio = data.width + ' / ' + data.height;
+                exportPreviewMedia.appendChild(canvas);
+                applyAssetBackground(canvas);
+                currentExport.blob = data.blob;
+                currentExport.filename = data.filename;
+                currentExport.url = URL.createObjectURL(data.blob);
+                previewStatus.textContent = 'SVGA 预览';
+                setStatus('SVGA 解析中...', 'blue');
+                progressInfo.textContent = '完成';
+                if (typeof SVGA === 'undefined') {
+                    setStatus('SVGA 播放器库未加载，无法预览（仍可下载）', 'orange');
+                } else {
+                    const player = new SVGA.Player(canvas);
+                    const parser = new SVGA.Parser();
+                    // 预览区域与 SVGA 的 viewBox 保持一致，避免播放器默认等比适配产生四周空白。
+                    if (typeof player.setContentMode === 'function') {
+                        player.setContentMode('ScaleToFill');
+                    }
+                    player.loops = (parseInt(loopCount.value) === 0) ? 0 : parseInt(loopCount.value);
+                    currentExport.player = player;
+                    player.$on?.('start', () => {
+                        if (!currentExport || currentExport.type !== 'svga') return;
+                        currentExport.exportPlaying = true;
+                        setFramePlayButton(true);
+                    });
+                    player.$on?.('pause', () => {
+                        if (!currentExport || currentExport.type !== 'svga') return;
+                        currentExport.exportPlaying = false;
+                        setFramePlayButton(false);
+                    });
+                    player.$on?.('resume', () => {
+                        if (!currentExport || currentExport.type !== 'svga') return;
+                        currentExport.exportPlaying = true;
+                        setFramePlayButton(true);
+                        currentExport.startSvgaProgressSync?.();
+                    });
+                    player.$on?.('process', () => {
+                        if (!currentExport || currentExport.type !== 'svga') return;
+                        currentExport.exportFrame = Number(player.currentFrame) || 0;
+                        updateFrameControls(currentExport.exportFrame, currentExport.frameCount, currentExport.exportPlaying);
+                    });
+                    currentExport.startSvgaProgressSync = () => {
+                        const sync = () => {
+                            if (!currentExport || currentExport.type !== 'svga') return;
+                            currentExport.exportFrame = Number(player.currentFrame) || 0;
+                            updateFrameControls(currentExport.exportFrame, currentExport.frameCount, currentExport.exportPlaying);
+                            if (currentExport.exportPlaying) currentExport.syncRafId = requestAnimationFrame(sync);
+                        };
+                        cancelAnimationFrame(currentExport.syncRafId);
+                        currentExport.syncRafId = requestAnimationFrame(sync);
+                    };
+                    loadSvgaPreview(parser, player, currentExport.url).then((videoItem) => {
+                        applyAssetBackground(canvas);
+                        currentExport.frameCount = Number(videoItem.frames || data.frameCount || 0);
+                        currentExport.exportPlaying = true;
+                        updateFrameControls(0, currentExport.frameCount, false);
+                        if (typeof player.setAnimatorLoop === 'function') {
+                            player.setAnimatorLoop(parseInt(loopCount.value) === 0 ? true : parseInt(loopCount.value));
+                        }
+                        playerPlay(player);
+                        player.playerHasStarted = true;
+                        currentExport.startSvgaProgressSync();
+                        setFramePlayButton(true);
+                        setStatus('SVGA 已生成，满意后点“下载”', 'green');
+                    }).catch((err) => {
+                        setStatus('SVGA 预览解析失败: ' + (err && err.message ? err.message : err), 'orange');
+                    });
+                }
+            } else if (type === 'webp') {
+                const canvas = document.createElement('canvas');
+                canvas.className = 'export-media';
+                canvas.width = data.width;
+                canvas.height = data.height;
+                exportPreviewMedia.appendChild(canvas);
+                applyAssetBackground(canvas);
+                currentExport.html = data.html;
+                currentExport.filename = data.filename;
+            previewStatus.textContent = 'WebP 播放页预览';
+                setStatus('WebP 播放页已生成，满意后点“下载”', 'green');
+                progressInfo.textContent = '完成';
+                const images = data.frameDataURLs.map(src => { const im = new Image(); im.src = src; return im; });
+                const ctxp = canvas.getContext('2d');
+                currentExport.width = data.width;
+                currentExport.height = data.height;
+                currentExport.frameCount = images.length;
+                currentExport.webpImages = images;
+                currentExport.webpCtx = ctxp;
+                let idx = 0; let last = 0;
+                function webpLoop(ts) {
+                    if (!currentExport || currentExport.type !== 'webp' || !currentExport.exportPlaying) return;
+                    if (ts - last >= 1000 / data.fps) {
+                        last = ts;
+                        ctxp.clearRect(0, 0, data.width, data.height);
+                        if (images[idx] && images[idx].complete) ctxp.drawImage(images[idx], 0, 0, data.width, data.height);
+                        currentExport.exportFrame = idx;
+                        updateFrameControls(idx, currentExport.frameCount, true);
+                        idx = (idx + 1) % images.length;
+                    }
+                    currentExport.rafId = requestAnimationFrame(webpLoop);
+                }
+                currentExport.startWebpLoop = () => {
+                    idx = currentExport.exportFrame || 0;
+                    last = performance.now();
+                    cancelAnimationFrame(currentExport.rafId);
+                    currentExport.rafId = requestAnimationFrame(webpLoop);
+                };
+                updateFrameControls(0, currentExport.frameCount, false);
+                drawExportWebpFrame(0);
+                currentExport.exportPlaying = true;
+                currentExport.startWebpLoop();
+            }
+
+            exportPreview.classList.remove('hidden');
+            previewPanel.classList.add('export-mode');
+            if (isPlaying) pauseAnimation();
+        }
+
+        function downloadCurrentExport() {
+            if (!currentExport) return;
+            let baseName = exportFilename.value.trim().replace(/[\\/:*?"<>|]/g, '_');
+            if (!baseName) {
+                exportFilename.focus();
+                setStatus('请先输入文件名再下载', 'orange');
+                return;
+            }
+            baseName = baseName.replace(/\.(svga|gif|html)$/i, '');
+            const extension = currentExport.type === 'svga' ? '.svga' : currentExport.type === 'gif' ? '.gif' : '.html';
+            currentExport.filename = baseName + extension;
+            if (currentExport.type === 'webp') {
+                downloadFile(currentExport.html, currentExport.filename, 'text/html');
+            } else {
+                const url = URL.createObjectURL(currentExport.blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = currentExport.filename;
+                document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+            setStatus('已下载 ' + currentExport.filename, 'green');
+        }
+
+        function loadSvgaPreview(parser, player, url) {
+            if (typeof parser.load === 'function' && typeof player.setVideoItem === 'function') {
+                return new Promise((resolve, reject) => {
+                    parser.load(url, resolve, reject);
+                });
+            }
+            return fetch(url)
+                .then((response) => response.arrayBuffer())
+                .then((bytes) => parser.do(bytes))
+                .then(async (videoItem) => {
+                    if (typeof player.mount === 'function') await player.mount(videoItem);
+                    else if (typeof player.setVideoItem === 'function') player.setVideoItem(videoItem);
+                    return videoItem;
+                });
+        }
+
+        // ================================================================
+        // 事件绑定
+        // ================================================================
+
+        dropArea.addEventListener('click', () => fileInput.click());
+        dropArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropArea.classList.add('dragover');
+        });
+        dropArea.addEventListener('dragleave', () => dropArea.classList.remove('dragover'));
+        dropArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropArea.classList.remove('dragover');
+            handleFiles(e.dataTransfer.files);
+        });
+        fileInput.addEventListener('change', (e) => {
+            handleFiles(e.target.files);
+            fileInput.value = '';
+        });
+
+        fpsSlider.addEventListener('input', () => {
+            fpsValue.textContent = fpsSlider.value;
+            if (isPlaying) {
+                stopAnimation();
+                playAnimation();
+            }
+        });
+
+        qualitySlider.addEventListener('input', () => {
+            qualityValue.textContent = Math.round(parseFloat(qualitySlider.value) * 100) + '%';
+        });
+
+        btnPlayPause.addEventListener('click', togglePreviewPlayback);
+        btnPrevFrame.addEventListener('click', () => currentExport
+            ? showExportFrame(Number(frameTimeline.value) - 1)
+            : showFrameAt(Number(frameTimeline.value) - 1));
+        btnNextFrame.addEventListener('click', () => currentExport
+            ? showExportFrame(Number(frameTimeline.value) + 1)
+            : showFrameAt(Number(frameTimeline.value) + 1));
+        frameTimeline.addEventListener('input', () => currentExport
+            ? showExportFrame(Number(frameTimeline.value))
+            : showFrameAt(Number(frameTimeline.value)));
+
+        btnClearFrames.addEventListener('click', () => {
+            ++loadGeneration;
+            processingLock = false;
+            isPlaying = false;
+            cancelAnimationFrame(animFrameId);
+            cleanupCurrentExport();
+            btnDownloadExport.disabled = true;
+            exportFilename.value = '';
+            exportEstimate.textContent = '预估大小 — · 内存消耗 —';
+            exportPreview.classList.add('hidden');
+            previewPanel.classList.remove('export-mode');
+            exportPreviewMedia.innerHTML = '';
+            frameImages = [];
+            totalRawSize = 0;
+            originalWidth = 0;
+            originalHeight = 0;
+            dimensionMismatchCount = 0;
+            renderCache = { key: '', canvases: [] };
+            window._frameImages = [];
+            hasFrames = false;
+            dropArea.classList.remove('has-files');
+            fileList.innerHTML = '';
+            placeholder.style.display = 'flex';
+            previewCanvas.style.display = 'none';
+            updateInfo();
+            setFramePlayButton(false);
+            updateFrameControls(0);
+            previewStatus.textContent = '就绪';
+            setStatus('已清空', 'gray');
+            progressInfo.textContent = '—';
+        });
+
+        btnExportSvga.addEventListener('click', exportSVGA);
+        btnExportWebp.addEventListener('click', exportWebP);
+        btnExportGif.addEventListener('click', exportGif);
+        btnDownloadExport.addEventListener('click', downloadCurrentExport);
+        previewBackground.addEventListener('change', () => setPreviewBackground(previewBackground.value));
+
+        // 初始化
+        previewCanvas.style.display = 'none';
+        setPreviewBackground('dark-checker');
+        setStatus('等待上传', 'gray');
+
+        window.addEventListener('resize', () => {
+            if (frameImages.length > 0) {
+                resizeCanvas();
+                drawFrame(currentIndex);
+            }
+        });
+
+        console.log('PNG序列转换工具已启动 (通用内部缩放)');
+    </script>
+</body>
+</html>
