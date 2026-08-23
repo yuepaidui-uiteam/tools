@@ -211,10 +211,15 @@
                 width: 100px;
             }
         }
+    .tool-container { position: relative; }
+    .tool-home-link { color: #a77bff; font-size: 15px; position: absolute; right: 28px; top: 24px; white-space: nowrap; }
+    .tool-home-link:hover { color: #fff; }
+    @media (max-width: 760px) { .tool-home-link { font-size: 14px; right: 18px; top: 18px; } }
     </style>
 </head>
 <body>
 <div class="tool-container">
+    <a class="tool-home-link" href="index.html">返回工具首页</a>
     <div class="header">
         <h1>🤖 Android 图标规范全景预览</h1>
         <p>自适应图标 (圆形/方圆形/圆角方形/方形) | Play Store 图标 | 旧版圆形 | 通知图标 | 前景比例 0~100% + 安全线(直径=画布75%)</p>

@@ -42,11 +42,15 @@
     .svga-layer { z-index: 2; }
     .text-layer { z-index: 3; display: none; }
     .empty-preview { color: #69657c; font-size: 14px; text-align: center; }
-    @media (max-width: 760px) { main { padding-top: 24px; } .layout { grid-template-columns: 1fr; } .preview-panel { min-height: 300px; } }
+    main { position: relative; }
+    .tool-home-link { color: #a77bff; font-size: 15px; position: absolute; right: 0; top: 0; white-space: nowrap; }
+    .tool-home-link:hover { color: #fff; }
+    @media (max-width: 760px) { main { padding-top: 24px; } .layout { grid-template-columns: 1fr; } .preview-panel { min-height: 300px; } .tool-home-link { font-size: 14px; } }
   </style>
 </head>
 <body>
   <main>
+    <a class="tool-home-link" href="index.html">返回工具首页</a>
     <h1>靓号秀 Party 切片预览器</h1>
     <p class="lead">中心线为拉伸区域，注意不要放装饰资源，会拉伸变形！！！</p>
     <div class="layout">

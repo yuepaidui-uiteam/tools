@@ -35,11 +35,14 @@
     .workspace > section > h2 { display:none; }
     .empty-canvas { align-self:center; justify-self:center; }
     .status { display:none; }
+    .tool-heading { padding-right:170px; position:relative; }
+    .tool-home-link { color:var(--brand); font-size:15px; position:absolute; right:0; top:0; white-space:nowrap; }
+    .tool-home-link:hover { color:var(--text); }
   </style>
 </head>
 <body>
   <main class="tool-main"><div class="wrap">
-    <header class="tool-heading"><div class="eyebrow">免费图片工具</div><h1>颜色去背工具</h1><p>拾取任意纯色或接近纯色的背景，自动转换为透明区域。文件始终只在本地浏览器中处理。</p></header>
+    <header class="tool-heading"><a class="tool-home-link" href="index.html">返回工具首页</a><h1>颜色去背工具</h1><p>拾取任意纯色或接近纯色的背景，自动转换为透明区域。文件始终只在本地浏览器中处理。</p></header>
     <div class="workspace">
       <section class="panel">
         <h2>原图与取色</h2>
