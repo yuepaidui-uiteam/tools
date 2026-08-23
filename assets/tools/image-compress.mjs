@@ -9,6 +9,17 @@ export function normalizeHexColor(value) {
   return /^[0-9A-F]{6}$/.test(hex) ? `#${hex}` : null;
 }
 
+export function getFileRelativePath(file) {
+  const rawPath = String(file?.webkitRelativePath || file?.name || 'image').replace(/\\/g, '/');
+  return rawPath.split('/').filter(Boolean).join('/') || 'image';
+}
+
+export function buildZipPath(relativePath, outputFileName) {
+  const parts = String(relativePath || '').replace(/\\/g, '/').split('/').filter(Boolean);
+  parts.pop();
+  return [...parts, outputFileName].join('/') || outputFileName;
+}
+
 export function getCompressActionState(items, processing, lang = 'en-US') {
   const hasFiles = items.length > 0;
   const allReady = hasFiles && items.every((item) => item.status === 'ready');
@@ -41,7 +52,7 @@ export class ImageBatchQueue {
     for (const file of files || []) {
       const validation = validateImageFile(file, this.items.length);
       if (!validation.ok) { rejected.push({ file, code: validation.code }); continue; }
-      const item = { file, status: 'queued', result: null, plan: null, error: '', notice: '' };
+      const item = { file, relativePath: getFileRelativePath(file), status: 'queued', result: null, plan: null, error: '', notice: '' };
       this.items.push(item); added.push(item);
     }
     this.emit();
@@ -136,7 +147,7 @@ export class ImageBatchQueue {
     const ready = this.items.filter((item) => item.status === 'ready' && item.result && item.plan);
     if (!ready.length || !globalThis.JSZip) return false;
     const zip = new globalThis.JSZip();
-    ready.forEach((item) => zip.file(item.plan.fileName, item.result));
+    ready.forEach((item) => zip.file(item.plan.zipPath || item.plan.fileName, item.result));
     this.download(await zip.generateAsync({ type: 'blob' }), 'compressed-images.zip');
     return true;
   }
@@ -178,6 +189,7 @@ async function processBrowserImage(item, settings, usedNames) {
     const width = image.naturalWidth || image.width;
     const height = image.naturalHeight || image.height;
     const plan = buildOutputPlan({ name: item.file.name, width, height }, { ...settings, usedNames });
+    plan.zipPath = buildZipPath(item.relativePath, plan.fileName);
     const source = document.createElement('canvas'); source.width = width; source.height = height;
     const sourceContext = source.getContext('2d', { willReadFrequently: true });
     if (plan.mimeType === 'image/jpeg') { sourceContext.fillStyle = plan.background; sourceContext.fillRect(0, 0, width, height); }
@@ -238,7 +250,7 @@ function compressPageDictionaries() {
 function initBrowserPage() {
   let currentLang = initToolShell(compressPageDictionaries());
   const $ = (id) => document.getElementById(id);
-  const elements = Object.fromEntries(['fileInput', 'dropzone', 'chooseFiles', 'outputFormat', 'qualityPreset', 'customQuality', 'qualityValue', 'resizeMode', 'resizeValue', 'jpgBackground', 'jpgBackgroundHex', 'clearAll', 'processAll', 'downloadZip', 'fileList', 'queueSummary'].map((id) => [id, $(id)]));
+  const elements = Object.fromEntries(['fileInput', 'folderInput', 'dropzone', 'chooseFiles', 'chooseFolder', 'outputFormat', 'qualityPreset', 'customQuality', 'qualityValue', 'resizeMode', 'resizeValue', 'jpgBackground', 'jpgBackgroundHex', 'clearAll', 'processAll', 'downloadZip', 'fileList', 'queueSummary'].map((id) => [id, $(id)]));
   const currentSettings = () => {
     const preset = elements.qualityPreset.value;
     const resizeMode = elements.resizeMode.value;
@@ -262,7 +274,7 @@ function initBrowserPage() {
   function render() {
     elements.fileList.replaceChildren(...queue.items.map((item) => {
       const row = document.createElement('li'); row.className = 'file-item';
-      const info = document.createElement('div'); const name = document.createElement('div'); name.className = 'file-name'; name.textContent = item.file.name;
+      const info = document.createElement('div'); const name = document.createElement('div'); name.className = 'file-name'; name.textContent = item.relativePath;
       const meta = document.createElement('div'); meta.className = 'file-meta'; meta.textContent = item.file.type.replace('image/', '').toUpperCase(); info.append(name, meta);
       const status = document.createElement('div'); status.className = 'file-status'; status.dataset.state = item.status; status.textContent = statusText(item);
       const actions = document.createElement('div'); actions.className = 'file-actions';
@@ -285,9 +297,11 @@ function initBrowserPage() {
   });
   const addFiles = (files) => queue.add(files);
   elements.chooseFiles.addEventListener('click', (event) => { event.stopPropagation(); elements.fileInput.click(); });
+  elements.chooseFolder.addEventListener('click', (event) => { event.stopPropagation(); elements.folderInput.click(); });
   elements.dropzone.addEventListener('click', () => elements.fileInput.click());
   elements.dropzone.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); elements.fileInput.click(); } });
   elements.fileInput.addEventListener('change', () => { addFiles(elements.fileInput.files); elements.fileInput.value = ''; });
+  elements.folderInput.addEventListener('change', () => { addFiles(elements.folderInput.files); elements.folderInput.value = ''; });
   ['dragenter', 'dragover'].forEach((type) => elements.dropzone.addEventListener(type, (event) => { event.preventDefault(); elements.dropzone.classList.add('is-dragging'); }));
   ['dragleave', 'drop'].forEach((type) => elements.dropzone.addEventListener(type, (event) => { event.preventDefault(); elements.dropzone.classList.remove('is-dragging'); }));
   elements.dropzone.addEventListener('drop', (event) => addFiles(event.dataTransfer.files));
