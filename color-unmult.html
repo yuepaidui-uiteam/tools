@@ -58,9 +58,9 @@
       <aside class="panel">
         <h2>去背参数</h2>
         <div class="control"><label for="colorPicker">背景颜色</label><div class="color-row"><input id="colorPicker" class="color-picker" type="color" value="#000000" aria-label="背景颜色"><span id="swatch" class="swatch"></span></div></div>
-        <div class="control"><label for="tolerance">颜色容差</label><div class="range-line"><input id="tolerance" type="range" min="0" max="180" value="48"><span id="toleranceValue" class="range-value">48</span></div><span class="hint">数值越大，去除的相近颜色越多</span></div>
-        <div class="control"><label for="feather">边缘羽化</label><div class="range-line"><input id="feather" type="range" min="0" max="80" value="12"><span id="featherValue" class="range-value">12</span></div><span class="hint">柔化主体边缘，减少色边和锯齿</span></div>
-        <div class="control"><label for="strength">去色强度</label><div class="range-line"><input id="strength" type="range" min="0" max="100" value="100"><span id="strengthValue" class="range-value">100%</span></div></div>
+        <div class="control"><label for="tolerance">颜色容差</label><div class="range-line"><input id="tolerance" type="range" min="0" max="100" value="27"><span id="toleranceValue" class="range-value">27%</span></div><span class="hint">按最大颜色距离百分比计算，数值越大去除的相近颜色越多</span></div>
+        <div class="control"><label for="feather">边缘羽化</label><div class="range-line"><input id="feather" type="range" min="0" max="100" value="12"><span id="featherValue" class="range-value">12%</span></div><span class="hint">按图片短边百分比换算，柔化主体边缘</span></div>
+        <div class="control"><label for="edgeUnmultRange">边缘去黑范围</label><div class="range-line"><input id="edgeUnmultRange" type="range" min="0" max="100" value="0"><span id="edgeUnmultRangeValue" class="range-value">0%</span></div><span class="hint">按图片短边百分比换算，仅处理边缘，中心区域仍按常规抠图</span></div>
         <div class="preview-frame canvas-frame"><canvas id="previewCanvas" width="320" height="220"></canvas></div><div id="previewMeta" class="preview-meta">尚未加载图片</div>
         <button id="downloadButton" class="button download" type="button" disabled>下载透明 PNG</button>
         <div class="tips"><p class="hint">提示：如果主体中也有与背景相近的颜色，请降低容差，或换一个更接近背景中心的取色点。</p></div>
@@ -69,7 +69,7 @@
   </div></main>
   <script>
     const $ = id => document.getElementById(id); document.title='图片去背工具'; document.querySelector('.tool-heading h1').textContent='图片去背工具';
-    const fileInput=$('fileInput'), chooseButton=$('chooseButton'), emptyState=$('emptyState'), mainCanvas=$('mainCanvas'), previewCanvas=$('previewCanvas'), status=$('status'), colorPicker=$('colorPicker'), swatch=$('swatch');
+    const fileInput=$('fileInput'), chooseButton=$('chooseButton'), emptyState=$('emptyState'), mainCanvas=$('mainCanvas'), previewCanvas=$('previewCanvas'), status=$('status'), colorPicker=$('colorPicker'), swatch=$('swatch'), edgeUnmultRange=$('edgeUnmultRange');
     const ctx=mainCanvas.getContext('2d',{willReadFrequently:true}), previewCtx=previewCanvas.getContext('2d'); let imageData=null, originalName='image';
     const canvasFrames=document.querySelectorAll('.canvas-frame');
     const checkerControl=document.createElement('div'); checkerControl.className='control checker-control'; checkerControl.innerHTML='<label for="checkerSelect">预览背景</label><select id="checkerSelect"><option value="checker" selected>深色棋盘</option><option value="light">浅色棋盘</option><option value="white">白色</option><option value="black">黑色</option></select><span class="hint">切换预览背景，透明区域仍会保持透明。</span>';
@@ -80,17 +80,46 @@
     const modeTabs=document.createElement('div'); modeTabs.className='mode-tabs'; modeTabs.setAttribute('role','tablist'); modeTabs.innerHTML='<button class="mode-tab" type="button" role="tab" aria-selected="true" data-mode="key">常规抠图</button><button class="mode-tab" type="button" role="tab" aria-selected="false" data-mode="unmult">去黑抠图</button>';
     document.querySelector('.workspace > section').insertBefore(modeTabs, checkerControl);
     const modeRow=document.createElement('div'); modeRow.className='mode-row'; modeTabs.replaceWith(modeRow); modeRow.append(modeTabs,checkerControl);
-    const parameterControls=[colorPicker,$('tolerance'),$('feather'),$('strength')];
+    const parameterControls=[colorPicker,$('tolerance'),$('feather'),edgeUnmultRange];
     function setMode(next){mode=next; modeTabs.querySelectorAll('.mode-tab').forEach(tab=>tab.setAttribute('aria-selected',String(tab.dataset.mode===mode))); parameterControls.forEach(control=>{control.disabled=mode==='unmult'; control.closest('.control, .color-row')?.classList.toggle('parameter-disabled',mode==='unmult')}); if(mode==='unmult'){renderUnmult();return;} render();}
     modeTabs.addEventListener('click',e=>{const tab=e.target.closest('.mode-tab'); if(tab)setMode(tab.dataset.mode)});
-    const controls=[['tolerance','toleranceValue',''],['feather','featherValue',''],['strength','strengthValue','%']];
-    function renderUnmult(){if(!imageData)return; const src=imageData.data, out=new ImageData(new Uint8ClampedArray(src),imageData.width,imageData.height), d=out.data; for(let i=0;i<d.length;i+=4){const red=d[i],green=d[i+1],blue=d[i+2],alpha=Math.max(red,green,blue); if(alpha===0){d[i+3]=0;continue;} d[i]=Math.min(255,Math.round(red*255/alpha)); d[i+1]=Math.min(255,Math.round(green*255/alpha)); d[i+2]=Math.min(255,Math.round(blue*255/alpha)); d[i+3]=alpha;} ctx.putImageData(out,0,0); $('downloadButton').disabled=false; }
+    const controls=[['tolerance','toleranceValue','%'],['feather','featherValue','%'],['edgeUnmultRange','edgeUnmultRangeValue','%']];
+    function createUnmultLayer(){
+      const src=imageData.data, out=new ImageData(new Uint8ClampedArray(src),imageData.width,imageData.height), d=out.data;
+      for(let i=0;i<d.length;i+=4){const red=d[i],green=d[i+1],blue=d[i+2],alpha=Math.max(red,green,blue); if(alpha===0){d[i+3]=0;continue;} d[i]=Math.min(255,Math.round(red*255/alpha)); d[i+1]=Math.min(255,Math.round(green*255/alpha)); d[i+2]=Math.min(255,Math.round(blue*255/alpha)); d[i+3]=alpha;}
+      return out;
+    }
+    function renderUnmult(){if(!imageData)return; const out=createUnmultLayer(); ctx.putImageData(out,0,0); $('downloadButton').disabled=false; }
     function renderCurrent(){if(mode==='unmult')renderUnmult();else render();}
     function hexToRgb(hex){return [parseInt(hex.slice(1,3),16),parseInt(hex.slice(3,5),16),parseInt(hex.slice(5,7),16)]}
     function updateLabels(){controls.forEach(([a,b,s])=>$(b).textContent=$(a).value+s); swatch.style.background=colorPicker.value; if(imageData) render();}
     function setStatus(text,error=false){status.textContent=text; status.className='status'+(error?' error':'')}
     function fitCanvas(canvas,w,h,maxW,maxH){const scale=Math.min(maxW/w,maxH/h,1);canvas.style.width=Math.round(w*scale)+'px';canvas.style.height=Math.round(h*scale)+'px'}
-    function render(){if(!imageData)return; if(mode==='unmult'){renderUnmult();return;} const src=imageData.data, out=new ImageData(new Uint8ClampedArray(src),imageData.width,imageData.height), d=out.data, [r,g,b]=hexToRgb(colorPicker.value), tol=Number($('tolerance').value), feather=Math.max(1,Number($('feather').value)), strength=Number($('strength').value)/100; for(let i=0;i<d.length;i+=4){const dist=Math.hypot(d[i]-r,d[i+1]-g,d[i+2]-b); let alpha=dist<=tol?0:dist<tol+feather?((dist-tol)/feather)*255:255; d[i+3]=Math.round(d[i+3]*(1-strength+strength*alpha/255));} ctx.putImageData(out,0,0); previewCanvas.width=Math.min(640,out.width); previewCanvas.height=Math.round(out.height*(previewCanvas.width/out.width)); previewCtx.clearRect(0,0,previewCanvas.width,previewCanvas.height); previewCtx.drawImage(mainCanvas,0,0,previewCanvas.width,previewCanvas.height); $('previewMeta').textContent=out.width+' × '+out.height+' px · 实时预览'; $('downloadButton').disabled=false; }
+    function applyEdgeUnmult(out){
+      const {width,height}=out, d=out.data, edgeLayer=createUnmultLayer().data, total=width*height, rangePercent=Number(edgeUnmultRange.value), range=rangePercent?Math.max(1,Math.round(Math.min(width,height)*rangePercent/100)):0, far=range+1; if(!range)return;
+      const insideDistance=new Uint16Array(total), outsideDistance=new Uint16Array(total);
+      for(let i=0;i<total;i++){const normalVisible=d[i*4+3]>0; insideDistance[i]=normalVisible?far:0; outsideDistance[i]=normalVisible?0:far;}
+      const expandDistance=(distance)=>{
+        for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+          const index=y*width+x; if(distance[index]===0)continue; let best=distance[index];
+          if(x>0)best=Math.min(best,distance[index-1]+1); if(y>0)best=Math.min(best,distance[index-width]+1);
+          if(x>0&&y>0)best=Math.min(best,distance[index-width-1]+1); if(x<width-1&&y>0)best=Math.min(best,distance[index-width+1]+1); distance[index]=best;
+        }
+        for(let y=height-1;y>=0;y--)for(let x=width-1;x>=0;x--){
+          const index=y*width+x; let best=distance[index]; if(x<width-1)best=Math.min(best,distance[index+1]+1);
+          if(y<height-1)best=Math.min(best,distance[index+width]+1); if(x<width-1&&y<height-1)best=Math.min(best,distance[index+width+1]+1);
+          if(x>0&&y<height-1)best=Math.min(best,distance[index+width-1]+1); distance[index]=best;
+        }
+      };
+      expandDistance(insideDistance); expandDistance(outsideDistance);
+      for(let i=0;i<total;i++){
+        const offset=i*4, normalVisible=d[offset+3]>0, edgeAlpha=edgeLayer[offset+3]; if(edgeAlpha===0)continue;
+        const distance=normalVisible?insideDistance[i]:outsideDistance[i]; if(distance>range)continue;
+        const progress=Math.max(0,Math.min(1,distance/range)), smooth=progress*progress*(3-2*progress), edgeMix=1-smooth;
+        for(let channel=0;channel<4;channel++)d[offset+channel]=Math.round(edgeLayer[offset+channel]*edgeMix+d[offset+channel]*(1-edgeMix));
+      }
+    }
+    function render(){if(!imageData)return; if(mode==='unmult'){renderUnmult();return;} const src=imageData.data, out=new ImageData(new Uint8ClampedArray(src),imageData.width,imageData.height), d=out.data, [r,g,b]=hexToRgb(colorPicker.value), tol=Number($('tolerance').value)/100*Math.sqrt(3*255*255), feather=Math.max(1,Math.min(out.width,out.height)*Number($('feather').value)/100); for(let i=0;i<d.length;i+=4){const dist=Math.hypot(d[i]-r,d[i+1]-g,d[i+2]-b); let alpha=dist<=tol?0:dist<tol+feather?((dist-tol)/feather)*255:255; d[i+3]=Math.round(d[i+3]*alpha/255);} applyEdgeUnmult(out); ctx.putImageData(out,0,0); previewCanvas.width=Math.min(640,out.width); previewCanvas.height=Math.round(out.height*(previewCanvas.width/out.width)); previewCtx.clearRect(0,0,previewCanvas.width,previewCanvas.height); previewCtx.drawImage(mainCanvas,0,0,previewCanvas.width,previewCanvas.height); $('previewMeta').textContent=out.width+' × '+out.height+' px · 实时预览'; $('downloadButton').disabled=false; }
     function loadFile(file){if(!file)return; if(!file.type.startsWith('image/')){setStatus('请选择 PNG、JPG 或 WebP 图片。',true);return;} const img=new Image(); img.onload=()=>{mainCanvas.width=img.naturalWidth;mainCanvas.height=img.naturalHeight;ctx.drawImage(img,0,0);imageData=ctx.getImageData(0,0,img.naturalWidth,img.naturalHeight);emptyState.hidden=true;mainCanvas.hidden=false;fitCanvas(mainCanvas,img.naturalWidth,img.naturalHeight,700,560);originalName=file.name.replace(/\.[^.]+$/,'')||'image';setStatus('已加载图片。点击原图背景区域即可拾取颜色。');render();URL.revokeObjectURL(img.src)};img.src=URL.createObjectURL(file)}
     fileInput.addEventListener('change',e=>{loadFile(e.target.files[0]); if(mode==='unmult') queueMicrotask(renderUnmult);}); chooseButton.addEventListener('click',()=>fileInput.click());
     ['dragover','drop'].forEach(type=>document.addEventListener(type,e=>e.preventDefault())); $('canvasFrame').addEventListener('drop',e=>{loadFile(e.dataTransfer.files[0]); if(mode==='unmult') queueMicrotask(renderUnmult);});
