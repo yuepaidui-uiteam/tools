@@ -9,11 +9,11 @@
     :root { color-scheme: dark; font-family: "PingFang SC", "Microsoft YaHei", sans-serif; }
     * { box-sizing: border-box; }
     body { margin: 0; min-height: 100vh; color: #f7f5ff; background: radial-gradient(circle at top left, #34246d, #10101d 45%, #08080f); }
-    main { width: min(1080px, calc(100% - 32px)); margin: 0 auto; padding: 40px 0 56px; }
+    main { width: min(1080px, calc(100% - 32px)); margin: 0 auto; padding: 34px 0 48px; }
     h1 { margin: 0; font-size: clamp(26px, 4vw, 38px); letter-spacing: .03em; }
-    .lead { margin: 10px 0 30px; color: #b9b7cf; }
-    .layout { display: grid; grid-template-columns: minmax(270px, 360px) 1fr; gap: 22px; align-items: stretch; }
-    .panel { padding: 20px; border: 1px solid rgba(255,255,255,.13); border-radius: 18px; background: rgba(26, 24, 45, .86); box-shadow: 0 18px 55px rgba(0,0,0,.2); }
+    .lead { margin: 8px 0 24px; color: #b9b7cf; }
+    .layout { display: grid; grid-template-columns: minmax(270px, 360px) 1fr; gap: 20px; align-items: stretch; }
+    .panel { padding: 18px; border: 1px solid rgba(255,255,255,.13); border-radius: 18px; background: rgba(26, 24, 45, .86); box-shadow: 0 18px 55px rgba(0,0,0,.2); }
     .panel h2 { margin: 0 0 18px; font-size: 17px; }
     .field { margin: 0 0 16px; }
     .field label, .field-label { display: block; margin-bottom: 8px; color: #dedcf1; font-size: 13px; }
@@ -30,11 +30,14 @@
     input[type="color"] { width: 100%; height: 39px; border: 0; border-radius: 9px; padding: 3px; background: #12111f; cursor: pointer; }
     .toggle { display: flex; align-items: center; gap: 8px; margin: 4px 0 0; color: #dedcf1; font-size: 13px; cursor: pointer; }
     .hint { margin: -4px 0 0; color: #8d8aa4; font-size: 12px; line-height: 1.5; }
-    .preview-panel { min-height: 390px; display: grid; place-items: center; align-content: center; gap: 22px; overflow: hidden; }
+    .preview-panel { min-height: 390px; display: grid; place-items: center; align-content: start; gap: 16px; overflow: hidden; position: relative; }
     .preview-shell { position: relative; width: min(100%, 680px); min-height: 176px; display: grid; place-items: center; border-radius: 14px; padding: 40px 18px; background-color: #eceaf3; background-image: linear-gradient(45deg, #d4d1dd 25%, transparent 25%), linear-gradient(-45deg, #d4d1dd 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #d4d1dd 75%), linear-gradient(-45deg, transparent 75%, #d4d1dd 75%); background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0; }
-    .preview-shell.solid { background: #2a283a; }
-    .preview-list { width: 100%; display: grid; gap: 18px; }
-    .preview-stage { display: grid; gap: 8px; }
+    .preview-shell[data-background="dark"] { background-color: #2a2f45; background-image: repeating-conic-gradient(#2a2f45 0 25%, #1c2135 0 50%); background-size: 20px 20px; }
+    .preview-shell[data-background="light"] { background-color: #eceaf3; background-image: repeating-conic-gradient(#eceaf3 0 25%, #d4d1dd 0 50%); background-size: 20px 20px; }
+    .preview-shell[data-background="white"] { background: #fff; }
+    .preview-shell[data-background="black"] { background: #000; }
+    .preview-list { width: 100%; display: grid; gap: 16px; padding: 50px 0 4px; }
+    .preview-stage { display: grid; gap: 6px; }
     .preview-label { margin: 0; color: #dedcf1; font-size: 13px; font-weight: 700; text-align: center; }
     #previewCanvas, #previewCanvas110 { display: none; max-width: 100%; height: auto; image-rendering: auto; filter: drop-shadow(0 8px 11px rgba(31, 0, 48, .18)); }
     .svga-layer, .text-layer { position: absolute; pointer-events: none; }
@@ -44,8 +47,11 @@
     .empty-preview { color: #69657c; font-size: 14px; text-align: center; }
     main { position: relative; }
     .tool-home-link { color: #a77bff; font-size: 15px; position: absolute; right: 0; top: 40px; text-decoration: none; white-space: nowrap; }
+    .background-control { align-items: center; display: flex; gap: 8px; position: absolute; right: 18px; top: 10px; z-index: 4; }
+    .background-control label { color: #9f9bb7; font-size: 14px; }
+    .background-control select { min-width: 138px; border: 1px solid #30345b; border-radius: 9px; padding: 9px 30px 9px 12px; color: #fff; background: #202743; font: inherit; }
     .tool-home-link:hover { color: #fff; }
-    @media (max-width: 760px) { main { padding-top: 24px; } .layout { grid-template-columns: 1fr; } .preview-panel { min-height: 300px; } .tool-home-link { font-size: 14px; top: 24px; } }
+    @media (max-width: 760px) { main { padding-top: 24px; } .layout { grid-template-columns: 1fr; } .preview-panel { min-height: 300px; } .tool-home-link { font-size: 14px; top: 24px; } .background-control { right: 14px; top: 8px; } }
   </style>
 </head>
 <body>
@@ -71,13 +77,13 @@
         <h2>文字与尺寸</h2>
         <div class="field"><label for="numberInput">靓号文字</label><input id="numberInput" type="text" value="666666" maxlength="20"></div>
         <div class="field control-grid"><div><label for="fontSizeInput">字号（px）</label><input id="fontSizeInput" type="number" min="12" max="72" value="36"></div><div><label for="colorInput">颜色</label><input id="colorInput" type="color" value="#ffffff"></div></div>
-        <label class="toggle"><input id="checkerInput" type="checkbox" checked> 显示透明棋盘底纹</label>
       </section>
       <section class="panel preview-panel" aria-label="资源预览">
+        <div class="background-control"><label for="backgroundSelect">背景</label><select id="backgroundSelect" aria-label="预览背景"><option value="dark" selected>深色棋盘</option><option value="light">浅色棋盘</option><option value="white">白色</option><option value="black">黑色</option></select></div>
         <div class="preview-list">
           <div class="preview-stage">
             <p class="preview-label">资源高度：110px</p>
-            <div id="previewShell110" class="preview-shell">
+            <div id="previewShell110" class="preview-shell" data-background="dark">
               <canvas id="previewCanvas110" aria-label="110px 高度靓号秀资源预览"></canvas>
               <div id="svgaLayer110" class="svga-layer"></div>
               <canvas id="textCanvas110" class="text-layer" aria-hidden="true"></canvas>
@@ -86,7 +92,7 @@
           </div>
           <div class="preview-stage">
             <p class="preview-label">资源高度：80px</p>
-            <div id="previewShell" class="preview-shell">
+            <div id="previewShell" class="preview-shell" data-background="dark">
               <canvas id="previewCanvas" aria-label="80px 高度靓号秀资源预览"></canvas>
               <div id="svgaLayer" class="svga-layer"></div>
               <canvas id="textCanvas" class="text-layer" aria-hidden="true"></canvas>
@@ -108,13 +114,13 @@
       const PREVIEW_HEIGHTS = [110, 80];
       const state = { background: null, left: null, right: null, urls: { background: null, left: null, right: null } };
       const inputs = {
-        background: document.querySelector('#backgroundInput'),
+        backgroundFile: document.querySelector('#backgroundInput'),
         left: document.querySelector('#leftDecorationInput'),
         right: document.querySelector('#rightDecorationInput'),
         text: document.querySelector('#numberInput'),
         fontSize: document.querySelector('#fontSizeInput'),
         color: document.querySelector('#colorInput'),
-        checker: document.querySelector('#checkerInput')
+        background: document.querySelector('#backgroundSelect')
       };
       const previews = [
         { height: PREVIEW_HEIGHTS[0], canvas: document.querySelector('#previewCanvas110'), textCanvas: document.querySelector('#textCanvas110'), svgaLayer: document.querySelector('#svgaLayer110'), shell: document.querySelector('#previewShell110'), empty: document.querySelector('#emptyPreview110'), players: [] },
@@ -139,13 +145,10 @@
       }
 
       function getVerticallyCenteredBaseline(ctx, text, height) {
-        const metrics = ctx.measureText(text);
         const scale = height / DESIGN_HEIGHT;
         const fontSize = Math.max(12, Number(inputs.fontSize.value) || 36) * scale;
-        const ascent = metrics.actualBoundingBoxAscent || fontSize * 0.75;
-        const descent = metrics.actualBoundingBoxDescent || fontSize * 0.25;
-        const baseline = (height - ascent - descent) / 2 + ascent;
-        return baseline;
+        // Kelson Sans 的字面视觉中心略高于 Canvas 的 middle 基线，按字号做视觉补偿。
+        return height / 2 + fontSize * 0.1;
       }
 
       function drawStretchedBackground(ctx, image, width, height, x, dpr) {
@@ -224,7 +227,7 @@
         ctx.fillStyle = inputs.color.value;
         ctx.font = fontValue(preview.height);
         ctx.textAlign = 'center';
-        ctx.textBaseline = 'alphabetic';
+        ctx.textBaseline = 'middle';
         ctx.fillText(text, layout.backgroundX + backgroundWidth / 2, baseline, backgroundWidth - 12 * (preview.height / DESIGN_HEIGHT));
       }
 
@@ -237,7 +240,7 @@
 
       function renderPreview(preview) {
         const { height, canvas, shell, empty } = preview;
-        shell.classList.toggle('solid', !inputs.checker.checked);
+        shell.dataset.background = inputs.background.value;
         if (!state.background) {
           canvas.style.display = 'none';
           empty.style.display = 'block';
@@ -265,7 +268,7 @@
         ctx.fillStyle = inputs.color.value;
         ctx.font = fontValue(height);
         ctx.textAlign = 'center';
-        ctx.textBaseline = 'alphabetic';
+        ctx.textBaseline = 'middle';
         const baseline = getVerticallyCenteredBaseline(ctx, text, height);
         ctx.fillText(text, layout.backgroundX + backgroundWidth / 2, baseline, backgroundWidth - 12 * (height / DESIGN_HEIGHT));
         ctx.restore();
@@ -317,11 +320,12 @@
         renderAllPreviews();
       }
 
-      inputs.background.addEventListener('change', (event) => loadImage('background', event.target.files[0]));
+      inputs.backgroundFile.addEventListener('change', (event) => loadImage('background', event.target.files[0]));
+      inputs.background.addEventListener('change', () => previews.forEach(renderPreview));
       inputs.left.addEventListener('change', (event) => loadImage('left', event.target.files[0]));
       inputs.right.addEventListener('change', (event) => loadImage('right', event.target.files[0]));
       document.querySelectorAll('[data-clear]').forEach((button) => button.addEventListener('click', () => clearImage(button.dataset.clear)));
-      [inputs.text, inputs.fontSize, inputs.color, inputs.checker].forEach((input) => input.addEventListener('input', renderAllPreviews));
+      [inputs.text, inputs.fontSize, inputs.color].forEach((input) => input.addEventListener('input', renderAllPreviews));
       renderAllPreviews();
       document.fonts.load('700 36px "Kelson Sans"').then(renderAllPreviews);
     })();
