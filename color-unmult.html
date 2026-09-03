@@ -85,7 +85,12 @@
     const controls=[['tolerance','toleranceValue','%'],['feather','featherValue','%'],['edgeUnmultRange','edgeUnmultRangeValue','%']];
     function createUnmultLayer(){
       const src=imageData.data, out=new ImageData(new Uint8ClampedArray(src),imageData.width,imageData.height), d=out.data;
-      for(let i=0;i<d.length;i+=4){const red=d[i],green=d[i+1],blue=d[i+2],alpha=Math.max(red,green,blue); if(alpha===0){d[i+3]=0;continue;} d[i]=Math.min(255,Math.round(red*255/alpha)); d[i+1]=Math.min(255,Math.round(green*255/alpha)); d[i+2]=Math.min(255,Math.round(blue*255/alpha)); d[i+3]=alpha;}
+      for(let i=0;i<d.length;i+=4){
+        const red=src[i], green=src[i+1], blue=src[i+2], sourceAlpha=src[i+3]/255, matteAlpha=Math.max(red,green,blue)/255, alpha=matteAlpha*sourceAlpha;
+        if(alpha<=0){d[i]=0;d[i+1]=0;d[i+2]=0;d[i+3]=0;continue;}
+        const scale=matteAlpha>0?1/matteAlpha:0;
+        d[i]=Math.min(255,Math.round(red*scale)); d[i+1]=Math.min(255,Math.round(green*scale)); d[i+2]=Math.min(255,Math.round(blue*scale)); d[i+3]=Math.round(alpha*255);
+      }
       return out;
     }
     function renderUnmult(){if(!imageData)return; const out=createUnmultLayer(); ctx.putImageData(out,0,0); $('downloadButton').disabled=false; }
