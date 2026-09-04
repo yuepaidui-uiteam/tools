@@ -174,11 +174,27 @@ function canvasToBlob(canvas, mimeType, quality) {
 }
 
 async function encodeOutput(canvas, plan) {
-  if (plan.mimeType !== 'image/png') return { blob: await canvasToBlob(canvas, plan.mimeType, plan.quality) };
+  if (plan.mimeType !== 'image/png') {
+    const quality = plan.mimeType === 'image/jpeg'
+      ? (plan.quality >= 0.85 ? 0.95 : plan.quality >= 0.75 ? 0.9 : 0.85)
+      : plan.quality;
+    return { blob: await canvasToBlob(canvas, plan.mimeType, quality) };
+  }
   if (globalThis.UPNG?.encode) {
     const rgba = canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, canvas.width, canvas.height).data;
-    const colors = plan.quality <= 0.65 ? 64 : plan.quality <= 0.8 ? 256 : 0;
-    return { blob: new Blob([globalThis.UPNG.encode([rgba.buffer], canvas.width, canvas.height, colors)], { type: 'image/png' }) };
+    let transparent = false;
+    for (let index = 3; index < rgba.length; index += 4) {
+      if (rgba[index] < 255) { transparent = true; break; }
+    }
+    // Keep transparent artwork lossless: palette quantization creates halos
+    // and banding in soft alpha fades and glows.
+    const colors = transparent ? 0 : plan.quality >= 0.85 ? 192 : plan.quality >= 0.75 ? 128 : 96;
+    const encoded = new Uint8Array(globalThis.UPNG.encode([rgba.buffer], canvas.width, canvas.height, colors));
+    const source = new Uint8Array(await new Promise((resolve, reject) => canvas.toBlob(async blob => {
+      if (!blob) { reject(new Error('当前浏览器不支持 PNG 导出')); return; }
+      resolve(await blob.arrayBuffer());
+    }, 'image/png')));
+    return { blob: new Blob([encoded.length < source.length ? encoded : source], { type: 'image/png' }) };
   }
   return { blob: await canvasToBlob(canvas, 'image/png'), notice: '已使用兼容模式导出 PNG' };
 }
