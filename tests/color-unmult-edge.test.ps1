@@ -40,4 +40,16 @@ if (-not $page.Contains('edgeMix')) {
   throw 'edge layer transition is missing'
 }
 
+if (-not $page.Contains('id="connectedOnly"')) {
+  throw 'connected edge checkbox is missing'
+}
+
+if (-not $page.Contains('function findConnectedBackground')) {
+  throw 'connected background flood fill helper is missing'
+}
+
+if (-not $page.Contains('connectedOnly.checked?findConnectedBackground')) {
+  throw 'connected edge processing is not connected to normal rendering'
+}
+
 Write-Output 'PASS'

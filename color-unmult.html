@@ -18,6 +18,8 @@
     .canvas-frame[data-checker="white"] { background:#fff; }
     .canvas-frame[data-checker="black"] { background:#000; }
     .control select { background:var(--bg); border:1px solid var(--line); border-radius:6px; color:var(--text); font:inherit; padding:9px; width:100%; }
+    .connected-control { align-items:center; display:flex; flex-direction:row; gap:8px; }
+    .connected-control input { accent-color:var(--brand); height:16px; margin:0; width:16px; }
     .empty-canvas[hidden] { display:none; }
     .canvas-frame canvas[hidden] { display:none; }
     .canvas-actions, .preview-frame, .preview-meta { display:none; }
@@ -60,6 +62,7 @@
         <div class="control"><label for="tolerance">颜色容差</label><div class="range-line"><input id="tolerance" type="range" min="0" max="100" value="27"><span id="toleranceValue" class="range-value">27%</span></div><span class="hint">按最大颜色距离百分比计算，数值越大去除的相近颜色越多</span></div>
         <div class="control"><label for="feather">边缘羽化</label><div class="range-line"><input id="feather" type="range" min="0" max="100" value="12"><span id="featherValue" class="range-value">12%</span></div><span class="hint">按图片短边百分比换算，柔化主体边缘</span></div>
         <div class="control"><label for="edgeUnmultRange">边缘去黑范围</label><div class="range-line"><input id="edgeUnmultRange" type="range" min="0" max="100" value="0"><span id="edgeUnmultRangeValue" class="range-value">0%</span></div><span class="hint">按图片短边百分比换算，仅处理边缘，中心区域仍按常规抠图</span></div>
+        <label class="control connected-control" for="connectedOnly"><input id="connectedOnly" type="checkbox" checked><span>仅处理连续边缘区域</span></label>
         <div class="preview-frame canvas-frame"><canvas id="previewCanvas" width="320" height="220"></canvas></div><div id="previewMeta" class="preview-meta">尚未加载图片</div>
         <button id="downloadButton" class="button download" type="button" disabled>下载透明 PNG</button>
         <div class="tips"><p class="hint">提示：如果主体中也有与背景相近的颜色，请降低容差，或换一个更接近背景中心的取色点。</p></div>
@@ -68,7 +71,7 @@
   </div></main>
   <script>
     const $ = id => document.getElementById(id); document.title='图片去背工具'; document.querySelector('.tool-heading h1').textContent='图片去背工具';
-    const fileInput=$('fileInput'), chooseButton=$('chooseButton'), emptyState=$('emptyState'), mainCanvas=$('mainCanvas'), previewCanvas=$('previewCanvas'), status=$('status'), colorPicker=$('colorPicker'), swatch=$('swatch'), edgeUnmultRange=$('edgeUnmultRange');
+    const fileInput=$('fileInput'), chooseButton=$('chooseButton'), emptyState=$('emptyState'), mainCanvas=$('mainCanvas'), previewCanvas=$('previewCanvas'), status=$('status'), colorPicker=$('colorPicker'), swatch=$('swatch'), edgeUnmultRange=$('edgeUnmultRange'), connectedOnly=$('connectedOnly');
     const ctx=mainCanvas.getContext('2d',{willReadFrequently:true}), previewCtx=previewCanvas.getContext('2d'); let imageData=null, originalName='image';
     const canvasFrames=document.querySelectorAll('.canvas-frame');
     const checkerControl=document.createElement('div'); checkerControl.className='control checker-control'; checkerControl.innerHTML='<label for="checkerSelect">预览背景</label><select id="checkerSelect"><option value="checker" selected>深色棋盘</option><option value="light">浅色棋盘</option><option value="white">白色</option><option value="black">黑色</option></select><span class="hint">切换预览背景，透明区域仍会保持透明。</span>';
@@ -79,7 +82,7 @@
     const modeTabs=document.createElement('div'); modeTabs.className='mode-tabs'; modeTabs.setAttribute('role','tablist'); modeTabs.innerHTML='<button class="mode-tab" type="button" role="tab" aria-selected="true" data-mode="key">常规抠图</button><button class="mode-tab" type="button" role="tab" aria-selected="false" data-mode="unmult">去黑抠图</button>';
     document.querySelector('.workspace > section').insertBefore(modeTabs, checkerControl);
     const modeRow=document.createElement('div'); modeRow.className='mode-row'; modeTabs.replaceWith(modeRow); modeRow.append(modeTabs,checkerControl);
-    const parameterControls=[colorPicker,$('tolerance'),$('feather'),edgeUnmultRange];
+    const parameterControls=[colorPicker,$('tolerance'),$('feather'),edgeUnmultRange,connectedOnly];
     function setMode(next){mode=next; modeTabs.querySelectorAll('.mode-tab').forEach(tab=>tab.setAttribute('aria-selected',String(tab.dataset.mode===mode))); parameterControls.forEach(control=>{control.disabled=mode==='unmult'; control.closest('.control, .color-row')?.classList.toggle('parameter-disabled',mode==='unmult')}); if(mode==='unmult'){renderUnmult();return;} render();}
     modeTabs.addEventListener('click',e=>{const tab=e.target.closest('.mode-tab'); if(tab)setMode(tab.dataset.mode)});
     const controls=[['tolerance','toleranceValue','%'],['feather','featherValue','%'],['edgeUnmultRange','edgeUnmultRangeValue','%']];
@@ -99,6 +102,15 @@
     function updateLabels(){controls.forEach(([a,b,s])=>$(b).textContent=$(a).value+s); swatch.style.background=colorPicker.value; if(imageData) render();}
     function setStatus(text,error=false){status.textContent=text; status.className='status'+(error?' error':'')}
     function fitCanvas(canvas,w,h,maxW,maxH){const scale=Math.min(maxW/w,maxH/h,1);canvas.style.width=Math.round(w*scale)+'px';canvas.style.height=Math.round(h*scale)+'px'}
+    function findConnectedBackground(src,width,height,r,g,b,limit){
+      const total=width*height, connected=new Uint8Array(total), queued=new Uint8Array(total), queue=new Int32Array(total); let head=0,tail=0;
+      const matches=index=>{const offset=index*4; if(src[offset+3]===0)return false; return Math.hypot(src[offset]-r,src[offset+1]-g,src[offset+2]-b)<=limit;};
+      const enqueue=index=>{if(!queued[index]&&matches(index)){queued[index]=1;queue[tail++]=index;}};
+      for(let x=0;x<width;x++){enqueue(x);if(height>1)enqueue((height-1)*width+x)}
+      for(let y=1;y<height-1;y++){enqueue(y*width);if(width>1)enqueue(y*width+width-1)}
+      while(head<tail){const index=queue[head++],x=index%width,y=(index-x)/width;connected[index]=1;if(x>0)enqueue(index-1);if(x<width-1)enqueue(index+1);if(y>0)enqueue(index-width);if(y<height-1)enqueue(index+width)}
+      return connected;
+    }
     function applyEdgeUnmult(out){
       const {width,height}=out, d=out.data, edgeLayer=createUnmultLayer().data, total=width*height, rangePercent=Number(edgeUnmultRange.value), range=rangePercent?Math.max(1,Math.round(Math.min(width,height)*rangePercent/100)):0, far=range+1; if(!range)return;
       const insideDistance=new Uint16Array(total), outsideDistance=new Uint16Array(total);
@@ -123,12 +135,12 @@
         for(let channel=0;channel<4;channel++)d[offset+channel]=Math.round(edgeLayer[offset+channel]*edgeMix+d[offset+channel]*(1-edgeMix));
       }
     }
-    function render(){if(!imageData)return; if(mode==='unmult'){renderUnmult();return;} const src=imageData.data, out=new ImageData(new Uint8ClampedArray(src),imageData.width,imageData.height), d=out.data, [r,g,b]=hexToRgb(colorPicker.value), tol=Number($('tolerance').value)/100*Math.sqrt(3*255*255), feather=Math.max(1,Math.min(out.width,out.height)*Number($('feather').value)/100); for(let i=0;i<d.length;i+=4){const dist=Math.hypot(d[i]-r,d[i+1]-g,d[i+2]-b); let alpha=dist<=tol?0:dist<tol+feather?((dist-tol)/feather)*255:255; d[i+3]=Math.round(d[i+3]*alpha/255);} applyEdgeUnmult(out); ctx.putImageData(out,0,0); previewCanvas.width=Math.min(640,out.width); previewCanvas.height=Math.round(out.height*(previewCanvas.width/out.width)); previewCtx.clearRect(0,0,previewCanvas.width,previewCanvas.height); previewCtx.drawImage(mainCanvas,0,0,previewCanvas.width,previewCanvas.height); $('previewMeta').textContent=out.width+' × '+out.height+' px · 实时预览'; $('downloadButton').disabled=false; }
+    function render(){if(!imageData)return; if(mode==='unmult'){renderUnmult();return;} const src=imageData.data, out=new ImageData(new Uint8ClampedArray(src),imageData.width,imageData.height), d=out.data, [r,g,b]=hexToRgb(colorPicker.value), tol=Number($('tolerance').value)/100*Math.sqrt(3*255*255), feather=Math.max(1,Math.min(out.width,out.height)*Number($('feather').value)/100), connected=connectedOnly.checked?findConnectedBackground(src,out.width,out.height,r,g,b,tol+feather):null; for(let i=0,index=0;i<d.length;i+=4,index++){const dist=Math.hypot(d[i]-r,d[i+1]-g,d[i+2]-b); if(connected&&!connected[index])continue; let alpha=dist<=tol?0:dist<tol+feather?((dist-tol)/feather)*255:255; d[i+3]=Math.round(d[i+3]*alpha/255);} applyEdgeUnmult(out); ctx.putImageData(out,0,0); previewCanvas.width=Math.min(640,out.width); previewCanvas.height=Math.round(out.height*(previewCanvas.width/out.width)); previewCtx.clearRect(0,0,previewCanvas.width,previewCanvas.height); previewCtx.drawImage(mainCanvas,0,0,previewCanvas.width,previewCanvas.height); $('previewMeta').textContent=out.width+' × '+out.height+' px · 实时预览'; $('downloadButton').disabled=false; }
     function loadFile(file){if(!file)return; if(!file.type.startsWith('image/')){setStatus('请选择 PNG、JPG 或 WebP 图片。',true);return;} const img=new Image(); img.onload=()=>{mainCanvas.width=img.naturalWidth;mainCanvas.height=img.naturalHeight;ctx.drawImage(img,0,0);imageData=ctx.getImageData(0,0,img.naturalWidth,img.naturalHeight);emptyState.hidden=true;mainCanvas.hidden=false;fitCanvas(mainCanvas,img.naturalWidth,img.naturalHeight,700,560);originalName=file.name.replace(/\.[^.]+$/,'')||'image';setStatus('已加载图片。点击原图背景区域即可拾取颜色。');render();URL.revokeObjectURL(img.src)};img.src=URL.createObjectURL(file)}
     fileInput.addEventListener('change',e=>{loadFile(e.target.files[0]); if(mode==='unmult') queueMicrotask(renderUnmult);}); chooseButton.addEventListener('click',()=>fileInput.click());
     ['dragover','drop'].forEach(type=>document.addEventListener(type,e=>e.preventDefault())); $('canvasFrame').addEventListener('drop',e=>{loadFile(e.dataTransfer.files[0]); if(mode==='unmult') queueMicrotask(renderUnmult);});
     mainCanvas.addEventListener('click',e=>{if(!imageData)return; const rect=mainCanvas.getBoundingClientRect(),x=Math.min(imageData.width-1,Math.max(0,Math.floor((e.clientX-rect.left)/rect.width*imageData.width))),y=Math.min(imageData.height-1,Math.max(0,Math.floor((e.clientY-rect.top)/rect.height*imageData.height))),p=ctx.getImageData(x,y,1,1).data; colorPicker.value='#'+[p[0],p[1],p[2]].map(v=>v.toString(16).padStart(2,'0')).join(''); updateLabels(); setStatus('已拾取背景颜色 '+colorPicker.value.toUpperCase()+'，可以继续调整容差和羽化。')});
-    controls.forEach(([a])=>$(a).addEventListener('input',updateLabels)); colorPicker.addEventListener('input',updateLabels); updateLabels();
+    controls.forEach(([a])=>$(a).addEventListener('input',updateLabels)); colorPicker.addEventListener('input',updateLabels); connectedOnly.addEventListener('change',renderCurrent); updateLabels();
     $('downloadButton').addEventListener('click',()=>{if(!imageData)return;const a=document.createElement('a');a.download=originalName+'-transparent.png';a.href=mainCanvas.toDataURL('image/png');a.click()});
   </script>
 </body>
