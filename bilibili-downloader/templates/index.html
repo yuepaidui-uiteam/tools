@@ -34,14 +34,6 @@
       margin: 0 auto;
       padding: 15px 0;
     }
-    header { margin: 0 auto 16px; text-align: center; }
-    h1 {
-      margin: 0;
-      font-size: clamp(38px, 4.3vw, 58px);
-      font-weight: 750;
-      letter-spacing: .055em;
-      line-height: 1.08;
-    }
     .download-form {
       display: flex;
       min-height: 49px;
@@ -166,8 +158,6 @@
     }
     @media (max-width: 640px) {
       main { width: min(100% - 32px, 520px); padding: 16px 0; }
-      header { margin-bottom: 27px; }
-      h1 { letter-spacing: .025em; }
       .download-form { flex-wrap: wrap; overflow: visible; border: 0; background: transparent; box-shadow: none; gap: 10px; }
       .link-field { min-height: 58px; flex-basis: calc(100% - 56px); border: 1px solid #ffffff24; border-radius: 8px; background: #171a21; }
       .paste-button { min-height: 58px; width: 46px; border: 1px solid #ffffff24; border-radius: 8px; background: #171a21; }
@@ -182,17 +172,13 @@
 </head>
 <body>
   <main>
-    <header>
-      <h1>哔哩哔哩视频下载</h1>
-    </header>
-
     <form class="download-form" id="downloadForm">
       <div class="link-field">
         <label class="link-input-field" for="videoUrl">
           <svg class="link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M10.6 13.4a4.2 4.2 0 0 0 5.94 0l3-3a4.2 4.2 0 0 0-5.94-5.94l-1.72 1.72M13.4 10.6a4.2 4.2 0 0 0-5.94 0l-3 3a4.2 4.2 0 0 0 5.94 5.94l1.72-1.72" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
           </svg>
-          <input id="videoUrl" name="url" type="text" inputmode="url" autocomplete="url" placeholder="粘贴 B 站视频链接，例如 https://www.bilibili.com/video/..." aria-label="B 站视频链接" required>
+          <input id="videoUrl" name="url" type="text" inputmode="url" autocomplete="url" placeholder="粘贴 B 站视频或番剧链接" aria-label="B 站视频或番剧链接" required>
         </label>
         <button class="clear-button" id="clearUrlButton" type="button" aria-label="清空链接" title="清空链接" hidden>×</button>
       </div>

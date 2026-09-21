@@ -15,6 +15,7 @@ from flask import Flask, abort, jsonify, request, send_file
 
 _BILIBILI_HOSTS = {"bilibili.com", "www.bilibili.com", "m.bilibili.com"}
 _VIDEO_PATH = re.compile(r"^/video/(?:BV[0-9A-Za-z]{10}|av[0-9]+)/?$", re.IGNORECASE)
+_BANGUMI_EP_PATH = re.compile(r"^/bangumi/play/ep[0-9]+/?$", re.IGNORECASE)
 _SHORT_LINK_HOSTS = _BILIBILI_HOSTS | {"b23.tv"}
 
 
@@ -51,8 +52,11 @@ def validate_bilibili_url(raw_url: str) -> str:
     if hostname == "b23.tv":
         if parsed.path in {"", "/"} or parsed.path.count("/") != 1:
             raise ValueError("短链接格式无效。")
-    elif not _VIDEO_PATH.fullmatch(parsed.path):
-        raise ValueError("请粘贴 B 站单个视频页面链接。")
+    elif not (
+        _VIDEO_PATH.fullmatch(parsed.path)
+        or _BANGUMI_EP_PATH.fullmatch(parsed.path)
+    ):
+        raise ValueError("请粘贴 B 站单个视频或番剧集数页面链接。")
 
     if hostname == "m.bilibili.com":
         return urlunsplit((parsed.scheme, "www.bilibili.com", parsed.path, parsed.query, ""))
@@ -138,7 +142,7 @@ def _yt_dlp_downloader(url: str, output_dir: Path, progress) -> Path:
         "merge_output_format": "mp4",
         "outtmpl": output_template,
         "progress_hooks": [on_progress],
-        "allowed_extractors": ["BiliBili"],
+        "allowed_extractors": ["BiliBili", "BiliBiliBangumi"],
         "quiet": True,
         "no_warnings": True,
     }

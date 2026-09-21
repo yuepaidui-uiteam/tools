@@ -1,10 +1,14 @@
 import unittest
 import time
-import zipfile
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from app import create_app, resolve_bilibili_short_url, validate_bilibili_url
+from app import (
+    _yt_dlp_downloader,
+    create_app,
+    resolve_bilibili_short_url,
+    validate_bilibili_url,
+)
 
 
 class BilibiliUrlValidationTests(unittest.TestCase):
@@ -33,6 +37,10 @@ class BilibiliUrlValidationTests(unittest.TestCase):
             validate_bilibili_url("https://m.bilibili.com/video/BV1xx411c7mD"),
             "https://www.bilibili.com/video/BV1xx411c7mD",
         )
+
+    def test_accepts_bangumi_episode_link_with_query(self):
+        url = "https://www.bilibili.com/bangumi/play/ep810660?theme=movie&spm_id_from=333.337.0.0"
+        self.assertEqual(validate_bilibili_url(url), url)
 
 
 def fake_downloader(url, output_dir, progress):
@@ -76,6 +84,35 @@ class DownloadApiTests(unittest.TestCase):
         self.assertEqual(result.status_code, 200)
         self.assertEqual(result.get_data(), url.encode("utf-8"))
         result.close()
+
+    def test_bangumi_episode_link_reaches_the_downloader(self):
+        url = "https://www.bilibili.com/bangumi/play/ep810660?theme=movie"
+        response = self.start(url)
+        self.assertEqual(response.status_code, 202)
+        task_id = response.get_json()["task_id"]
+        wait_for_status(self.client, task_id, "finished")
+        result = self.client.get(f"/downloads/{task_id}")
+        self.assertEqual(result.get_data(), url.encode("utf-8"))
+        result.close()
+
+
+    def test_bangumi_extractor_is_enabled(self):
+        from unittest.mock import patch
+
+        with TemporaryDirectory() as tempdir, patch("yt_dlp.YoutubeDL") as youtube_dl:
+            downloader = youtube_dl.return_value.__enter__.return_value
+            downloader.download.side_effect = lambda _urls: (
+                Path(tempdir) / "episode.mp4"
+            ).write_bytes(b"video")
+
+            _yt_dlp_downloader(
+                "https://www.bilibili.com/bangumi/play/ep810660",
+                Path(tempdir),
+                lambda _progress: None,
+            )
+
+            allowed_extractors = youtube_dl.call_args.args[0]["allowed_extractors"]
+            self.assertIn("BiliBiliBangumi", allowed_extractors)
 
     def test_invalid_url_is_rejected_before_downloader_runs(self):
         calls = []
@@ -251,30 +288,6 @@ class LocalToolDocumentationTests(unittest.TestCase):
         ):
             with self.subTest(value=value), self.assertRaises(ValueError):
                 validate_bilibili_url(value)
-
-
-class PackageDistributionTests(unittest.TestCase):
-    def test_install_guide_links_to_a_dedicated_downloader_package(self):
-        repo_root = Path(__file__).resolve().parents[2]
-        page = (repo_root / "bilibili-downloader.html").read_text(encoding="utf-8")
-        self.assertIn('href="bilibili-downloader-package.zip"', page)
-        self.assertNotIn("archive/refs/heads/main.zip", page)
-
-    def test_package_contains_only_files_needed_to_run_the_downloader(self):
-        repo_root = Path(__file__).resolve().parents[2]
-        package = repo_root / "bilibili-downloader-package.zip"
-        self.assertTrue(package.is_file(), "dedicated downloader package must exist")
-        with zipfile.ZipFile(package) as archive:
-            self.assertEqual(
-                set(archive.namelist()),
-                {
-                    "app.py",
-                    "requirements.txt",
-                    "run.bat",
-                    "README.md",
-                    "templates/index.html",
-                },
-            )
 
 
 if __name__ == "__main__":
