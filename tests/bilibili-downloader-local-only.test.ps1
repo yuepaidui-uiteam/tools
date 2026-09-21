@@ -8,7 +8,7 @@ $installer = Get-Content -Raw (Join-Path $root 'bilibili-downloader\install.bat'
 $launcher = Get-Content -Raw (Join-Path $root 'bilibili-downloader\run.bat')
 $readme = Get-Content -Raw (Join-Path $root 'bilibili-downloader\README.md')
 
-if (-not $homePage.Contains('bilibili-downloader.html')) { throw 'The tools homepage must link to the shareable downloader page.' }
+if ($homePage.Contains('bilibili-downloader.html')) { throw 'The tools homepage must not show the Bilibili downloader entry.' }
 if (-not (Test-Path -LiteralPath $publicPage)) { throw 'The shareable downloader page must exist.' }
 foreach ($content in @(
     '<h1>B站视频下载工具</h1>',
@@ -24,4 +24,4 @@ if (-not $installer.Contains('--background')) { throw 'The installer must start 
 if (-not $launcher.Contains('http://127.0.0.1:5000')) { throw 'The Start menu launcher must still open the local page directly.' }
 if (-not $readme.Contains('回到下载器网页并刷新')) { throw 'Installation instructions must return users to the shareable page.' }
 
-Write-Output 'PASS: the public page offers one-click installation and embeds the local downloader.'
+Write-Output 'PASS: the homepage has no downloader entry; the direct share page and installer remain available.'
