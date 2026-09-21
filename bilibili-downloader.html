@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="B站视频本地下载工具的免费下载、Python 与 FFmpeg 安装配置说明。">
+  <title>B站视频下载工具 · 安装与使用</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="assets/tools/tools.css">
+  <style>
+    .tool-main { padding:42px 0 76px; }
+    .tool-heading { margin-bottom:26px; max-width:760px; }
+    .tool-heading h1 { font-size:38px; margin:8px 0; }
+    .tool-heading p { color:var(--muted); margin:0; }
+    .tool-home-link { color:var(--brand); font-size:14px; position:absolute; right:24px; text-decoration:none; top:0; white-space:nowrap; }
+    .tool-home-link:hover { color:var(--text); }
+    .wrap { position:relative; }
+    .guide-layout { display:grid; gap:18px; }
+    .panel { background:var(--panel); border:1px solid var(--line); border-radius:8px; box-shadow:var(--shadow); padding:22px; }
+    .panel h2 { font-size:19px; margin:0 0 14px; }
+    .download-panel { display:grid; gap:14px; }
+    .download-heading { align-items:center; display:flex; flex-wrap:wrap; gap:10px 18px; justify-content:space-between; }
+    .download-heading h2 { margin:0; }
+    .download-heading p { color:var(--muted); margin:0; }
+    .tool-frame { background:#10131c; border:0; border-radius:7px; display:block; height:430px; width:100%; }
+    .notice { background:color-mix(in srgb,var(--brand) 10%,var(--panel)); border:1px solid color-mix(in srgb,var(--brand) 28%,var(--line)); border-radius:7px; margin-bottom:18px; padding:16px; }
+    .notice strong { display:block; margin-bottom:5px; }
+    .notice p { color:var(--muted); margin:0; }
+    .steps { counter-reset:step; display:grid; gap:0; list-style:none; margin:0; padding:0; }
+    .steps li { border-top:1px solid var(--line); counter-increment:step; padding:17px 0; }
+    .steps li:first-child { border-top:0; padding-top:2px; }
+    .steps h3 { align-items:center; display:flex; font-size:16px; gap:10px; margin:0 0 7px; }
+    .steps h3::before { align-items:center; background:color-mix(in srgb,var(--brand) 17%,var(--surface)); border-radius:50%; color:var(--brand); content:counter(step); display:inline-flex; flex:none; font-size:13px; height:27px; justify-content:center; width:27px; }
+    .steps p { color:var(--muted); margin:0; }
+    .steps p + p { margin-top:8px; }
+    .steps a, .resource-link { color:var(--brand); text-decoration:underline; text-underline-offset:3px; }
+    .steps code { background:var(--surface); border:1px solid var(--line); border-radius:4px; color:var(--text); font-family:Consolas,monospace; padding:2px 6px; }
+    .install-command { align-items:center; background:var(--surface); border:1px solid var(--line); border-radius:7px; display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between; margin-top:12px; padding:10px 12px; }
+    .install-command code { background:none; border:0; overflow-wrap:anywhere; padding:0; }
+    .copy-command { background:var(--brand); border:0; border-radius:6px; color:white; cursor:pointer; flex:none; font:inherit; font-size:13px; font-weight:700; padding:8px 12px; }
+    .manual-fallback { border-top:1px solid var(--line); margin-top:14px; padding-top:12px; }
+    .manual-fallback summary { color:var(--muted); cursor:pointer; font-size:13px; }
+    .manual-fallback p { color:var(--muted); margin:9px 0 0; }
+    .side-note { color:var(--muted); font-size:13px; line-height:1.7; margin:14px 0 0; }
+    .button.secondary { background:var(--surface); color:var(--text); }
+    @media(max-width:680px) { .tool-main { padding-top:30px; }.tool-heading h1 { font-size:31px; padding-top:22px; }.tool-home-link { right:18px; }.panel { padding:17px; }.download-heading { align-items:flex-start; flex-direction:column; }.tool-frame { height:470px; } }
+  </style>
+</head>
+<body>
+<main class="tool-main"><div class="wrap">
+  <header class="tool-heading">
+    <a class="tool-home-link" href="index.html">返回工具首页</a>
+    <h1>B站视频下载工具</h1>
+    <p>免费使用。启动工具后，直接在本页粘贴视频链接并下载。</p>
+  </header>
+  <div class="guide-layout">
+    <section class="panel download-panel" aria-labelledby="download-title">
+      <div class="download-heading"><h2 id="download-title">B站视频下载</h2><p>启动工具后回到本页刷新，即可在这里粘贴链接下载。</p></div>
+      <iframe class="tool-frame" src="http://127.0.0.1:5000/" title="B站视频下载工具" loading="lazy" referrerpolicy="no-referrer"></iframe>
+    </section>
+    <section class="panel" aria-labelledby="steps-title">
+      <h2 id="steps-title">安装说明（3 步）</h2>
+      <div class="notice"><strong>先下载工具，再安装运行环境，最后启动即可。</strong><p>都是免费步骤，不需要手动配置 PATH。</p></div>
+      <ol class="steps">
+        <li><h3>下载并解压工具</h3><p><a href="bilibili-downloader-package.zip" download>下载 B 站下载器</a>，解压后打开文件夹即可；压缩包只包含本工具运行所需文件。</p></li>
+        <li><h3>一键安装 Python 和 FFmpeg</h3><p>打开 Windows PowerShell，点下面按钮复制命令，粘贴后按回车。确认安装即可；无需手动找文件夹或修改 PATH。</p>
+          <div class="install-command"><code id="installCommand">winget install 9NQ7512CXL7T -e; winget install --id Gyan.FFmpeg.Essentials -e</code><button class="copy-command" id="copyInstallCommand" type="button">复制安装命令</button></div>
+          <details class="manual-fallback"><summary>如果提示找不到 winget</summary><p>使用 <a href="https://www.python.org/downloads/windows/">Python 官方安装页</a>和 <a href="https://www.gyan.dev/ffmpeg/builds/">FFmpeg 下载页</a>手动安装；FFmpeg 解压后还需把含 <code>ffmpeg.exe</code> 的 <code>bin</code> 文件夹加入 Windows Path。</p></details>
+        </li>
+        <li><h3>启动并下载视频</h3><p>双击 <code>run.bat</code> 并保持黑色命令窗口打开，然后回到本页刷新。在上方下载框粘贴单个 B 站视频链接，点“下载视频”；完成后点“保存视频”。</p></li>
+      </ol>
+      <p class="side-note">目前支持公开可访问的单个视频链接；不支持合集或分 P 选择。请遵守平台规则与版权要求，只保存你有权保存的内容。</p>
+    </section>
+  </div>
+</div></main>
+<script>
+  document.getElementById('copyInstallCommand').addEventListener('click', async () => {
+    const button = document.getElementById('copyInstallCommand');
+    const command = document.getElementById('installCommand').textContent.trim();
+    try {
+      await navigator.clipboard.writeText(command);
+      button.textContent = '已复制';
+    } catch {
+      const helper = document.createElement('textarea');
+      helper.value = command;
+      helper.style.position = 'fixed';
+      helper.style.opacity = '0';
+      document.body.appendChild(helper);
+      helper.select();
+      const copied = document.execCommand('copy');
+      helper.remove();
+      button.textContent = copied ? '已复制' : '请手动复制';
+    }
+    window.setTimeout(() => { button.textContent = '复制安装命令'; }, 2200);
+  });
+</script>
+</body>
+</html>

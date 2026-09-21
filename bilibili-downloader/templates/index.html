@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10131c">
+  <link rel="icon" href="data:,">
+  <title>哔哩哔哩视频下载</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+      color: #f2f5fc;
+      background: #10131c;
+      font-synthesis: none;
+      text-rendering: optimizeLegibility;
+    }
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      background:
+        linear-gradient(90deg, transparent 69px, #ffffff05 70px, transparent 71px),
+        linear-gradient(0deg, transparent 69px, #ffffff05 70px, transparent 71px),
+        radial-gradient(ellipse at 50% 0%, #1b253a 0, #151820 44%, #10131a 78%);
+      background-size: 140px 140px, 140px 140px, auto;
+    }
+    main {
+      display: flex;
+      min-height: 100vh;
+      width: min(1100px, calc(100% - 54px));
+      flex-direction: column;
+      justify-content: center;
+      margin: 0 auto;
+      padding: 15px 0;
+    }
+    header { margin: 0 auto 16px; text-align: center; }
+    h1 {
+      margin: 0;
+      font-size: clamp(38px, 4.3vw, 58px);
+      font-weight: 750;
+      letter-spacing: .055em;
+      line-height: 1.08;
+    }
+    .download-form {
+      display: flex;
+      min-height: 49px;
+      overflow: hidden;
+      border: 1px solid #ffffff20;
+      border-radius: 9px;
+      background: #171a21;
+      box-shadow: 0 16px 48px #0003;
+    }
+    .link-field {
+      display: flex;
+      min-width: 0;
+      flex: 1;
+      align-items: center;
+      gap: 15px;
+      padding: 0 20px;
+    }
+    .link-input-field {
+      display: flex;
+      min-width: 0;
+      flex: 1;
+      align-items: center;
+      gap: 15px;
+      cursor: text;
+    }
+    .link-icon { width: 19px; height: 19px; flex: none; color: #9da9bc; }
+    input {
+      width: 100%;
+      min-width: 0;
+      border: 0;
+      outline: 0;
+      color: #f5f7fc;
+      background: transparent;
+      font: inherit;
+      font-size: 15px;
+    }
+    input::placeholder { color: #9aa4b4; }
+    .clear-button {
+      display: inline-flex;
+      width: 28px;
+      height: 28px;
+      flex: none;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      color: #aab5c6;
+      background: transparent;
+      cursor: pointer;
+      font: inherit;
+      font-size: 22px;
+      line-height: 1;
+    }
+    .clear-button:hover { color: white; background: #ffffff16; }
+    .clear-button[hidden] { display: none; }
+    .paste-button, .submit-button {
+      display: inline-flex;
+      flex: none;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      border: 0;
+      color: white;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 650;
+      transition: background .16s ease, filter .16s ease;
+    }
+    .paste-button {
+      width: 56px;
+      color: #aab5c6;
+      background: transparent;
+    }
+    .paste-button:hover { background: #ffffff12; color: white; }
+    .paste-button svg, .submit-button svg { width: 19px; height: 19px; }
+    .submit-button {
+      min-width: 152px;
+      padding: 0 22px;
+      background: linear-gradient(135deg, #8b2fe6, #2f6bff);
+    }
+    .submit-button:hover:not(:disabled) { filter: brightness(1.12); }
+    button:focus-visible, a:focus-visible, input:focus-visible {
+      outline: 3px solid #a989ff;
+      outline-offset: -3px;
+    }
+    button:disabled { cursor: wait; opacity: .68; }
+    .status-area { padding: 12px 4px 0; }
+    .status-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    #statusMessage { margin: 0; color: #b9c4d8; font-size: 14px; line-height: 1.6; }
+    #statusMessage[data-state="error"] { color: #ff9eae; }
+    #statusMessage[data-state="success"] { color: #9fe6c1; }
+    .setup-help-link { color: #b9a4ff; font-size: 14px; font-weight: 650; white-space: nowrap; }
+    .setup-help-link[hidden] { display: none; }
+    .result-link {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      color: #b9a4ff;
+      font-size: 14px;
+      font-weight: 650;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .result-link:hover { color: #d2c5ff; text-decoration: underline; }
+    .result-link.visible { display: inline-flex; }
+    .progress-track {
+      display: none;
+      height: 5px;
+      margin-top: 13px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #ffffff20;
+    }
+    .progress-track.visible { display: block; }
+    .progress-bar {
+      width: 0;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #8262f2, #4c8dff);
+      transition: width .2s ease;
+    }
+    @media (max-width: 640px) {
+      main { width: min(100% - 32px, 520px); padding: 16px 0; }
+      header { margin-bottom: 27px; }
+      h1 { letter-spacing: .025em; }
+      .download-form { flex-wrap: wrap; overflow: visible; border: 0; background: transparent; box-shadow: none; gap: 10px; }
+      .link-field { min-height: 58px; flex-basis: calc(100% - 56px); border: 1px solid #ffffff24; border-radius: 8px; background: #171a21; }
+      .paste-button { min-height: 58px; width: 46px; border: 1px solid #ffffff24; border-radius: 8px; background: #171a21; }
+      .submit-button { width: 100%; min-height: 56px; border-radius: 8px; }
+      .status-area { padding-top: 20px; }
+      .status-row { align-items: flex-start; flex-direction: column; gap: 8px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>哔哩哔哩视频下载</h1>
+    </header>
+
+    <form class="download-form" id="downloadForm">
+      <div class="link-field">
+        <label class="link-input-field" for="videoUrl">
+          <svg class="link-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M10.6 13.4a4.2 4.2 0 0 0 5.94 0l3-3a4.2 4.2 0 0 0-5.94-5.94l-1.72 1.72M13.4 10.6a4.2 4.2 0 0 0-5.94 0l-3 3a4.2 4.2 0 0 0 5.94 5.94l1.72-1.72" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+          <input id="videoUrl" name="url" type="text" inputmode="url" autocomplete="url" placeholder="粘贴 B 站视频链接，例如 https://www.bilibili.com/video/..." aria-label="B 站视频链接" required>
+        </label>
+        <button class="clear-button" id="clearUrlButton" type="button" aria-label="清空链接" title="清空链接" hidden>×</button>
+      </div>
+      <button class="paste-button" id="pasteButton" type="button" aria-label="粘贴剪贴板链接" title="粘贴链接">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 2H8a2 2 0 0 0-2 2v2H4v16h16V6h-2V4a2 2 0 0 0-2-2Zm-8 4V4h8v2H8Zm10 14H6V8h12v12Z"/><path d="M8 11h8v1.6H8zm0 3.5h8v1.6H8z"/></svg>
+      </button>
+      <button class="submit-button" id="submitButton" type="submit">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M5 17v3h14v-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>下载视频</span>
+      </button>
+    </form>
+
+    <section class="status-area" aria-live="polite" aria-atomic="true">
+      <div class="status-row">
+        <p id="statusMessage" data-state="idle"></p>
+        <a class="setup-help-link" id="setupHelpLink" href="https://yuepaidui-uiteam.github.io/tools/bilibili-downloader.html" target="_blank" rel="noopener noreferrer" hidden>安装与配置说明</a>
+        <a class="result-link" id="resultLink" href="#" download>
+          <span>保存视频</span>
+          <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 2.5v10m0 0 3.5-3.5M10 12.5 6.5 9M4 14v3h12v-3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </a>
+      </div>
+      <div class="progress-track" id="progressTrack" role="progressbar" aria-label="下载进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+    const form = document.getElementById('downloadForm');
+    const input = document.getElementById('videoUrl');
+    const clearButton = document.getElementById('clearUrlButton');
+    const submitButton = document.getElementById('submitButton');
+    const statusMessage = document.getElementById('statusMessage');
+    const setupHelpLink = document.getElementById('setupHelpLink');
+    const progressTrack = document.getElementById('progressTrack');
+    const progressBar = document.getElementById('progressBar');
+    const resultLink = document.getElementById('resultLink');
+
+    function setStatus(message, state = 'idle') {
+      statusMessage.textContent = message;
+      statusMessage.dataset.state = state;
+    }
+
+    function setProgress(value) {
+      const progress = Math.max(0, Math.min(100, Number(value) || 0));
+      progressTrack.setAttribute('aria-valuenow', String(progress));
+      progressBar.style.width = `${progress}%`;
+    }
+
+    function syncClearButton() {
+      clearButton.hidden = !input.value;
+    }
+
+    input.addEventListener('input', syncClearButton);
+    clearButton.addEventListener('click', () => {
+      input.value = '';
+      syncClearButton();
+      input.focus();
+    });
+    syncClearButton();
+
+    async function pollTask(taskId) {
+      while (true) {
+        await new Promise(resolve => window.setTimeout(resolve, 1000));
+        const response = await fetch(`/api/status/${encodeURIComponent(taskId)}`, { headers: { Accept: 'application/json' } });
+        const task = await response.json();
+        if (!response.ok) throw new Error(task.error || '读取下载进度失败。');
+        setProgress(task.progress);
+        if (task.status === 'finished') {
+          resultLink.href = `/downloads/${encodeURIComponent(taskId)}`;
+          resultLink.classList.add('visible');
+          setStatus('视频已准备好，点击“保存视频”下载到本机。', 'success');
+          return;
+        }
+        if (task.status === 'error') throw new Error(task.error || '下载失败，请稍后重试。');
+        setStatus(`正在解析并下载… ${task.progress}%`);
+      }
+    }
+
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (!input.value.trim()) {
+        input.focus();
+        setStatus('请先粘贴 B 站视频链接。', 'error');
+        return;
+      }
+      submitButton.disabled = true;
+      submitButton.querySelector('span').textContent = '正在解析…';
+      resultLink.classList.remove('visible');
+      setupHelpLink.hidden = true;
+      progressTrack.classList.add('visible');
+      setProgress(0);
+      setStatus('正在创建下载任务…');
+      try {
+        const response = await fetch('/api/download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ url: input.value.trim() })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || '无法创建下载任务。');
+        setStatus('下载任务已创建，正在连接 B 站…');
+        await pollTask(data.task_id);
+      } catch (error) {
+        const message = error instanceof TypeError ? '连接本机服务失败，请确认启动窗口仍在运行。' : error.message;
+        setStatus(message, 'error');
+        setupHelpLink.hidden = !message.includes('未检测到 FFmpeg');
+      } finally {
+        submitButton.disabled = false;
+        submitButton.querySelector('span').textContent = '下载视频';
+      }
+    });
+
+    document.getElementById('pasteButton').addEventListener('click', async () => {
+      try {
+        input.value = await navigator.clipboard.readText();
+        syncClearButton();
+        input.focus();
+        setStatus(input.value ? '链接已粘贴，点击“下载视频”开始。' : '剪贴板为空，请先复制 B 站链接。', input.value ? 'idle' : 'error');
+      } catch {
+        input.focus();
+        setStatus('无法读取剪贴板，请手动粘贴链接。', 'error');
+      }
+    });
+  </script>
+</body>
+</html>
