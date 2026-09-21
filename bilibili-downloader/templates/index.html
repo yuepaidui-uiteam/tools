@@ -30,9 +30,17 @@
       min-height: 100vh;
       width: min(1100px, calc(100% - 54px));
       flex-direction: column;
+      gap: 14px;
       justify-content: center;
       margin: 0 auto;
       padding: 15px 0;
+    }
+    .page-title {
+      margin: 0;
+      font-size: 42px;
+      font-weight: 750;
+      line-height: 1.15;
+      text-align: center;
     }
     .download-form {
       display: flex;
@@ -126,8 +134,6 @@
     #statusMessage { margin: 0; color: #b9c4d8; font-size: 14px; line-height: 1.6; }
     #statusMessage[data-state="error"] { color: #ff9eae; }
     #statusMessage[data-state="success"] { color: #9fe6c1; }
-    .setup-help-link { color: #b9a4ff; font-size: 14px; font-weight: 650; white-space: nowrap; }
-    .setup-help-link[hidden] { display: none; }
     .result-link {
       display: none;
       align-items: center;
@@ -158,6 +164,7 @@
     }
     @media (max-width: 640px) {
       main { width: min(100% - 32px, 520px); padding: 16px 0; }
+      .page-title { font-size: 32px; }
       .download-form { flex-wrap: wrap; overflow: visible; border: 0; background: transparent; box-shadow: none; gap: 10px; }
       .link-field { min-height: 58px; flex-basis: calc(100% - 56px); border: 1px solid #ffffff24; border-radius: 8px; background: #171a21; }
       .paste-button { min-height: 58px; width: 46px; border: 1px solid #ffffff24; border-radius: 8px; background: #171a21; }
@@ -172,6 +179,7 @@
 </head>
 <body>
   <main>
+    <h1 class="page-title">哔哩哔哩视频下载</h1>
     <form class="download-form" id="downloadForm">
       <div class="link-field">
         <label class="link-input-field" for="videoUrl">
@@ -194,7 +202,6 @@
     <section class="status-area" aria-live="polite" aria-atomic="true">
       <div class="status-row">
         <p id="statusMessage" data-state="idle"></p>
-        <a class="setup-help-link" id="setupHelpLink" href="https://yuepaidui-uiteam.github.io/tools/bilibili-downloader.html" target="_blank" rel="noopener noreferrer" hidden>安装与配置说明</a>
         <a class="result-link" id="resultLink" href="#" download>
           <span>保存视频</span>
           <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 2.5v10m0 0 3.5-3.5M10 12.5 6.5 9M4 14v3h12v-3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -213,7 +220,6 @@
     const clearButton = document.getElementById('clearUrlButton');
     const submitButton = document.getElementById('submitButton');
     const statusMessage = document.getElementById('statusMessage');
-    const setupHelpLink = document.getElementById('setupHelpLink');
     const progressTrack = document.getElementById('progressTrack');
     const progressBar = document.getElementById('progressBar');
     const resultLink = document.getElementById('resultLink');
@@ -269,7 +275,6 @@
       submitButton.disabled = true;
       submitButton.querySelector('span').textContent = '正在解析…';
       resultLink.classList.remove('visible');
-      setupHelpLink.hidden = true;
       progressTrack.classList.add('visible');
       setProgress(0);
       setStatus('正在创建下载任务…');
@@ -286,7 +291,6 @@
       } catch (error) {
         const message = error instanceof TypeError ? '连接本机服务失败，请确认启动窗口仍在运行。' : error.message;
         setStatus(message, 'error');
-        setupHelpLink.hidden = !message.includes('未检测到 FFmpeg');
       } finally {
         submitButton.disabled = false;
         submitButton.querySelector('span').textContent = '下载视频';

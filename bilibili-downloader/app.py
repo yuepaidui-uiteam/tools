@@ -202,7 +202,7 @@ class DownloadManager:
                     marker in error_text
                     for marker in ("not installed", "not found", "could not find", "unable to locate")
                 ):
-                    task.error = "未检测到 FFmpeg。请查看下方的安装与配置说明后重试。"
+                    task.error = "未检测到 FFmpeg，请重新运行安装器准备 FFmpeg 后重试。"
                 else:
                     task.error = "下载失败。请检查视频是否可公开访问、网络连接及 FFmpeg 安装。"
 

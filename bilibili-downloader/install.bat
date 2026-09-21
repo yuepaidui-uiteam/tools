@@ -6,6 +6,7 @@ set "STAGE_DIR=%INSTALL_DIR%\.payload-staging"
 set "SHORTCUT=%APPDATA%\Microsoft\Windows\Start Menu\Programs\B站视频下载器.lnk"
 
 if /i "%~1"=="--plan" goto :plan
+if /i "%~1"=="--background" goto :background_run
 if /i "%~1"=="--run" goto :run
 
 echo [1/6] 正在检查 Windows 和 winget...
@@ -75,8 +76,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='
 if errorlevel 1 goto :shortcut_failed
 
 echo [6/6] 安装完成，正在启动本机服务...
-start "B站视频下载器" "%INSTALL_DIR%\run.bat" --run
-echo 请回到刚才的 GitHub 页面；如工具没有显示，请刷新页面。
+start "B站视频下载器" "%INSTALL_DIR%\run.bat" --background
+echo 服务启动后，回到下载器网页并刷新，即可开始使用。
 exit /b 0
 
 :plan
@@ -91,7 +92,15 @@ echo 开始菜单: %SHORTCUT%
 exit /b 0
 
 :run
+set "OPEN_LOCAL=1"
+goto :run_service
+
+:background_run
+set "OPEN_LOCAL=0"
+
+:run_service
 cd /d "%~dp0"
+set "LOCAL_URL=http://127.0.0.1:5000/"
 if not exist ".venv\Scripts\python.exe" (
   echo 未找到 Python 运行环境，请重新运行安装器。
   pause
@@ -99,13 +108,21 @@ if not exist ".venv\Scripts\python.exe" (
 )
 ".venv\Scripts\python.exe" -c "import socket,sys; s=socket.socket(); s.settimeout(1); sys.exit(1 if s.connect_ex(('127.0.0.1',5000))==0 else 0)" >nul 2>nul
 if errorlevel 1 (
-  echo 下载器已经在运行。请切回 GitHub 页面；如工具没有显示，请刷新页面。
-  pause
+  echo 下载器本机服务已在运行。
+  if "%OPEN_LOCAL%"=="1" start "" "%LOCAL_URL%"
   exit /b 0
 )
-echo 下载器正在运行。请切回 GitHub 页面；如工具没有显示，请刷新页面。
-".venv\Scripts\python.exe" app.py
-if errorlevel 1 goto :run_failed
+start "B站视频下载器服务" /min ".venv\Scripts\python.exe" app.py
+for /l %%I in (1,1,30) do (
+  powershell -NoProfile -ExecutionPolicy Bypass -Command "try { $r=Invoke-WebRequest -UseBasicParsing -Uri '%LOCAL_URL%' -TimeoutSec 2; if ($r.StatusCode -eq 200) { exit 0 } } catch {}; exit 1" >nul 2>nul
+  if not errorlevel 1 goto :open_local_page
+  timeout /t 1 /nobreak >nul
+)
+goto :run_failed
+
+:open_local_page
+echo 下载器本机服务已启动。
+if "%OPEN_LOCAL%"=="1" start "" "%LOCAL_URL%"
 exit /b 0
 
 :unsupported

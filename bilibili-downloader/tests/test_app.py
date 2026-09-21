@@ -176,7 +176,7 @@ class DownloadApiTests(unittest.TestCase):
         )
         status = wait_for_status(client, response.get_json()["task_id"], "error")
         self.assertIn("FFmpeg", status["error"])
-        self.assertIn("安装与配置说明", status["error"])
+        self.assertIn("重新运行安装器", status["error"])
 
     def test_rejects_forged_host_and_untrusted_origin(self):
         forged_host = self.client.get("/api/status/not-a-task", headers={"Host": "attacker.example"})
@@ -249,6 +249,7 @@ class DownloadApiTests(unittest.TestCase):
         page = response.get_data(as_text=True)
         for content in (
             "哔哩哔哩视频下载",
+            '<h1 class="page-title">哔哩哔哩视频下载</h1>',
             'rel="icon" href="data:,"',
             'id="downloadForm"',
             'id="videoUrl"',
@@ -267,6 +268,13 @@ class DownloadApiTests(unittest.TestCase):
         page = self.client.get("/").get_data(as_text=True)
         self.assertNotIn("粘贴 B 站视频链接，解析后下载到本机", page)
         self.assertIn('id="statusMessage" data-state="idle"></p>', page)
+
+    def test_homepage_is_self_contained_and_has_no_hosted_setup_link(self):
+        page = self.client.get("/").get_data(as_text=True)
+        self.assertNotIn("setupHelpLink", page)
+        self.assertNotIn("github.io/tools/bilibili-downloader.html", page)
+        self.assertNotIn("仅在本机运行 · 不使用付费解析 API", page)
+        self.assertIn("justify-content: center", page)
 
     def test_favicon_request_does_not_create_a_missing_resource_error(self):
         self.assertEqual(self.client.get("/favicon.ico").status_code, 204)

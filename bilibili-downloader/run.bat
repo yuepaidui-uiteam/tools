@@ -18,19 +18,40 @@ if errorlevel 1 (
     if errorlevel 1 goto :failed
 )
 
-echo 本机下载服务已启动。请回到下载页面；如工具未显示，请刷新页面。
-echo 保持此窗口打开即可使用；关闭窗口会停止服务。
-".venv\Scripts\python.exe" app.py
-if errorlevel 1 goto :failed
+set "LOCAL_URL=http://127.0.0.1:5000/"
+".venv\Scripts\python.exe" -c "import socket,sys; s=socket.socket(); s.settimeout(1); sys.exit(1 if s.connect_ex(('127.0.0.1',5000))==0 else 0)" >nul 2>nul
+if errorlevel 1 goto :open_existing
+
+start "B站视频下载器服务" /min ".venv\Scripts\python.exe" app.py
+for /l %%I in (1,1,30) do (
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "try { $r=Invoke-WebRequest -UseBasicParsing -Uri '%LOCAL_URL%' -TimeoutSec 2; if ($r.StatusCode -eq 200) { exit 0 } } catch {}; exit 1" >nul 2>nul
+    if not errorlevel 1 goto :open_local_page
+    timeout /t 1 /nobreak >nul
+)
+goto :server_failed
+
+:open_existing
+echo 下载器服务已在运行，正在打开本机页面。
+start "" "%LOCAL_URL%"
+exit /b 0
+
+:open_local_page
+echo 下载器已启动，正在打开本机页面。
+start "" "%LOCAL_URL%"
 exit /b 0
 
 :python_missing
-echo [错误] 未检测到 Python。请使用下载页面中的一键安装器安装运行环境。
+echo [错误] 未检测到 Python。请重新运行 Windows 一键安装器。
 pause
 exit /b 1
 
 :ffmpeg_missing
-echo [错误] 未检测到 FFmpeg。请重新运行下载页面中的一键安装器。
+echo [错误] 未检测到 FFmpeg。请重新运行一键安装器。
+pause
+exit /b 1
+
+:server_failed
+echo [错误] 本机下载服务未能启动，请检查端口 5000 是否被其他程序占用。
 pause
 exit /b 1
 
