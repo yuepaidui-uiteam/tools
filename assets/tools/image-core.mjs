@@ -52,6 +52,28 @@ export function computeOutputSize(width, height, resize = {}) {
   };
 }
 
+export function computeCanvasSize(width, height, options = {}) {
+  const sourceWidth = Math.round(finitePositive(width, 1));
+  const sourceHeight = Math.round(finitePositive(height, 1));
+  const readDimension = (value, original) => {
+    const number = Number(value);
+    if (options.relative) return Math.max(1, original + (Number.isFinite(number) ? Math.round(number) : 0));
+    return Math.max(1, Math.round(finitePositive(number, original)));
+  };
+  const outputWidth = readDimension(options.width, sourceWidth);
+  const outputHeight = readDimension(options.height, sourceHeight);
+  const anchorValue = (value) => Number.isFinite(Number(value)) ? Math.min(1, Math.max(0, Number(value))) : 0.5;
+  const anchorX = anchorValue(options.anchorX);
+  const anchorY = anchorValue(options.anchorY);
+
+  return {
+    width: outputWidth,
+    height: outputHeight,
+    offsetX: Math.round((outputWidth - sourceWidth) * anchorX),
+    offsetY: Math.round((outputHeight - sourceHeight) * anchorY)
+  };
+}
+
 export function outputFileName(name, format, usedNames = new Set()) {
   const safeName = String(name || 'image').trim() || 'image';
   const stem = safeName.replace(/\.[^.]+$/, '') || 'image';
@@ -73,6 +95,22 @@ export function percentSaved(before, after) {
   const result = Number(after);
   if (!Number.isFinite(original) || !Number.isFinite(result) || original <= 0) return 0;
   return Math.round(((original - result) / original) * 100);
+}
+
+export function selectNonExpandingBlob(original, encoded) {
+  return encoded.size < original.size
+    ? { blob: encoded, compressed: true }
+    : { blob: original, compressed: false };
+}
+
+export function getResizeUnit(mode) {
+  if (mode === 'percent') return '%';
+  if (mode === 'width' || mode === 'height') return 'px';
+  return '';
+}
+
+export function getCanvasExtensionModes(format) {
+  return normalizeFormat(format) === 'jpg' ? ['color'] : ['transparent', 'color'];
 }
 
 export function compositeRgbaOnBackground(rgba, color = '#ffffff') {
@@ -99,8 +137,15 @@ export function compositeRgbaOnBackground(rgba, color = '#ffffff') {
 
 export function buildOutputPlan(meta = {}, settings = {}) {
   const format = normalizeFormat(settings.format || meta.format || meta.type, 'png');
-  const dimensions = computeOutputSize(meta.width, meta.height, settings.resize);
+  const resize = settings.resize || {};
+  const dimensions = resize.mode === 'canvas'
+    ? computeCanvasSize(meta.width, meta.height, resize)
+    : { ...computeOutputSize(meta.width, meta.height, resize), offsetX: 0, offsetY: 0 };
   const usedNames = settings.usedNames || new Set();
+  const background = format === 'jpg'
+    ? (settings.background || (resize.mode === 'canvas' && resize.extensionColor) || '#ffffff')
+    : null;
+  const extensionTransparent = resize.mode === 'canvas' && resize.extensionTransparent === true;
 
   return {
     format,
@@ -109,6 +154,10 @@ export function buildOutputPlan(meta = {}, settings = {}) {
     ...dimensions,
     fileName: outputFileName(meta.name, format, usedNames),
     preserveTransparency: format === 'png' || format === 'webp',
-    background: format === 'jpg' ? (settings.background || '#ffffff') : null
+    background,
+    canvasExtensionTransparent: extensionTransparent && format !== 'jpg',
+    canvasExtensionColor: extensionTransparent
+      ? (format === 'jpg' ? background : null)
+      : (resize.extensionColor || '#ffffff')
   };
 }

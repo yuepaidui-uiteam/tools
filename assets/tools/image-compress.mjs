@@ -1,6 +1,6 @@
 import { initToolShell, downloadBlob } from './common.mjs';
 import { LANGS, formatBytes, t } from './i18n.mjs';
-import { buildOutputPlan, percentSaved, validateImageFile } from './image-core.mjs';
+import { buildOutputPlan, getCanvasExtensionModes, getResizeUnit, percentSaved, selectNonExpandingBlob, validateImageFile } from './image-core.mjs';
 
 const QUALITY_PRESETS = { high: 0.9, balanced: 0.8, small: 0.7 };
 
@@ -116,7 +116,7 @@ export class ImageBatchQueue {
     for (const file of files || []) {
       const validation = validateImageFile(file, this.items.length);
       if (!validation.ok) { rejected.push({ file, code: validation.code }); continue; }
-      const item = { file, relativePath: getFileRelativePath(file), status: 'queued', result: null, plan: null, error: '', notice: '' };
+      const item = { file, relativePath: getFileRelativePath(file), status: 'queued', result: null, plan: null, error: '', notice: '', noticeKey: '' };
       this.items.push(item); added.push(item);
     }
     this.emit();
@@ -142,7 +142,7 @@ export class ImageBatchQueue {
     if (this.processing) return false;
     let changed = false;
     this.items.filter((item) => item.status === 'ready').forEach((item) => {
-      item.status = 'queued'; item.result = null; item.plan = null; item.error = ''; item.notice = '';
+      item.status = 'queued'; item.result = null; item.plan = null; item.error = ''; item.notice = ''; item.noticeKey = '';
       changed = true;
     });
     if (changed) { this.usedNames.clear(); this.emit(); }
@@ -151,7 +151,7 @@ export class ImageBatchQueue {
 
   retry(item) {
     if (!item || item.status === 'processing') return false;
-    item.status = 'queued'; item.error = ''; item.notice = ''; item.result = null; item.plan = null;
+    item.status = 'queued'; item.error = ''; item.notice = ''; item.noticeKey = ''; item.result = null; item.plan = null;
     this.emit(); return true;
   }
 
@@ -183,7 +183,7 @@ export class ImageBatchQueue {
         try {
           const processed = await this.processItem(item, settings, this.usedNames);
           if (token !== this.cancelToken) continue;
-          item.result = processed.blob; item.plan = processed.plan; item.notice = processed.notice || ''; item.status = 'ready';
+          item.result = processed.blob; item.plan = processed.plan; item.notice = processed.notice || ''; item.noticeKey = processed.noticeKey || ''; item.status = 'ready';
         } catch (error) {
           if (token !== this.cancelToken) continue;
           item.status = 'error'; item.error = error?.message || ''; item.errorKey = 'cannot_process_image';
@@ -275,9 +275,21 @@ async function processBrowserImage(item, settings, usedNames) {
     if (plan.mimeType === 'image/jpeg') { sourceContext.fillStyle = plan.background; sourceContext.fillRect(0, 0, width, height); }
     sourceContext.drawImage(image, 0, 0);
     const canvas = document.createElement('canvas'); canvas.width = plan.width; canvas.height = plan.height;
-    if (globalThis.pica && (source.width !== canvas.width || source.height !== canvas.height)) await globalThis.pica().resize(source, canvas);
+    if (settings.resize?.mode === 'canvas') {
+      const context = canvas.getContext('2d');
+      if (!plan.canvasExtensionTransparent) {
+        context.fillStyle = plan.canvasExtensionColor;
+        context.fillRect(0, 0, canvas.width, canvas.height);
+      }
+      context.drawImage(source, plan.offsetX, plan.offsetY);
+    } else if (globalThis.pica && (source.width !== canvas.width || source.height !== canvas.height)) await globalThis.pica().resize(source, canvas);
     else canvas.getContext('2d').drawImage(source, 0, 0, canvas.width, canvas.height);
-    return { plan, ...(await encodeOutput(canvas, plan)) };
+    const encoded = await encodeOutput(canvas, plan);
+    if (plan.mimeType === item.file.type && plan.width === width && plan.height === height) {
+      const selection = selectNonExpandingBlob(item.file, encoded.blob);
+      if (!selection.compressed) return { plan, blob: selection.blob, noticeKey: 'cannot_compress_further' };
+    }
+    return { plan, ...encoded };
   } finally { image.close?.(); }
 }
 
@@ -330,16 +342,54 @@ function compressPageDictionaries() {
 function initBrowserPage() {
   let currentLang = initToolShell(compressPageDictionaries());
   const $ = (id) => document.getElementById(id);
-  const elements = Object.fromEntries(['fileInput', 'folderInput', 'dropzone', 'chooseFiles', 'chooseFolder', 'outputFormat', 'qualityPreset', 'customQuality', 'qualityValue', 'resizeMode', 'resizeValue', 'jpgBackground', 'jpgBackgroundHex', 'clearAll', 'processAll', 'downloadZip', 'fileList', 'queueSummary'].map((id) => [id, $(id)]));
+  const elements = Object.fromEntries(['fileInput', 'folderInput', 'dropzone', 'chooseFiles', 'chooseFolder', 'outputFormat', 'qualityPreset', 'customQuality', 'qualityValue', 'resizeMode', 'resizeValue', 'resizeUnit', 'canvasSizeOptions', 'canvasWidth', 'canvasHeight', 'canvasRelative', 'canvasExtensionMode', 'canvasExtensionColorField', 'canvasExtensionColorLabel', 'canvasExtensionColor', 'canvasExtensionColorHex', 'canvasAnchor', 'clearAll', 'processAll', 'downloadZip', 'fileList', 'queueSummary'].map((id) => [id, $(id)]));
+  let previousOutputFormat = elements.outputFormat.value;
+  let preferredExtensionMode = elements.canvasExtensionMode.value;
   const currentSettings = () => {
     const preset = elements.qualityPreset.value;
     const resizeMode = elements.resizeMode.value;
-    return { format: elements.outputFormat.value, quality: preset === 'custom' ? Number(elements.customQuality.value) / 100 : QUALITY_PRESETS[preset], resize: resizeMode === 'original' ? {} : { mode: resizeMode, value: Number(elements.resizeValue.value) }, background: elements.jpgBackground.value };
+    const resize = resizeMode === 'canvas'
+      ? {
+          mode: 'canvas', width: Number(elements.canvasWidth.value), height: Number(elements.canvasHeight.value),
+          relative: elements.canvasRelative.checked,
+          anchorX: Number(elements.canvasAnchor.querySelector('[aria-pressed="true"]').dataset.anchorX),
+          anchorY: Number(elements.canvasAnchor.querySelector('[aria-pressed="true"]').dataset.anchorY),
+          extensionColor: elements.canvasExtensionColor.value,
+          extensionTransparent: elements.canvasExtensionMode.value === 'transparent'
+        }
+      : resizeMode === 'original' ? {} : { mode: resizeMode, value: Number(elements.resizeValue.value) };
+    return { format: elements.outputFormat.value, quality: preset === 'custom' ? Number(elements.customQuality.value) / 100 : QUALITY_PRESETS[preset], resize, background: elements.canvasExtensionColor.value };
   };
   const setConditionalControls = () => {
+    const outputFormat = elements.outputFormat.value;
+    const switchingToJpg = outputFormat === 'jpg' && previousOutputFormat !== 'jpg';
+    const switchingFromJpg = outputFormat !== 'jpg' && previousOutputFormat === 'jpg';
+    if (switchingToJpg && elements.canvasExtensionMode.value === 'transparent') {
+      preferredExtensionMode = 'transparent';
+    }
+    if (switchingFromJpg) elements.canvasExtensionMode.value = preferredExtensionMode;
+    const availableExtensionModes = getCanvasExtensionModes(outputFormat);
+    elements.canvasExtensionMode.querySelector('option[value="transparent"]').hidden = !availableExtensionModes.includes('transparent');
+    if (!availableExtensionModes.includes(elements.canvasExtensionMode.value)) {
+      elements.canvasExtensionMode.value = availableExtensionModes[0];
+    }
+    if (outputFormat !== 'jpg' && !switchingFromJpg) preferredExtensionMode = elements.canvasExtensionMode.value;
+    previousOutputFormat = outputFormat;
     document.querySelector('.custom-quality').classList.toggle('is-visible', elements.qualityPreset.value === 'custom');
-    document.querySelector('.resize-value').classList.toggle('is-visible', elements.resizeMode.value !== 'original');
-    document.querySelector('.jpg-options').classList.toggle('is-visible', elements.outputFormat.value === 'jpg');
+    document.querySelector('.resize-value').classList.toggle('is-visible', elements.resizeMode.value !== 'original' && elements.resizeMode.value !== 'canvas');
+    elements.canvasSizeOptions.classList.toggle('is-visible', elements.resizeMode.value === 'canvas');
+    elements.resizeUnit.textContent = getResizeUnit(elements.resizeMode.value);
+    [elements.canvasWidth, elements.canvasHeight].forEach((input) => {
+      if (elements.canvasRelative.checked) input.removeAttribute('min');
+      else input.min = '1';
+    });
+    const showFillColor = elements.outputFormat.value === 'jpg'
+      || (elements.resizeMode.value === 'canvas' && elements.canvasExtensionMode.value !== 'transparent');
+    elements.canvasExtensionColorField.classList.toggle('is-visible', showFillColor);
+    const fillLabel = elements.outputFormat.value === 'jpg'
+      ? (elements.resizeMode.value === 'canvas' ? 'jpg_canvas_fill_color' : 'jpg_background')
+      : 'extension_color';
+    elements.canvasExtensionColorLabel.textContent = t(currentLang, fillLabel);
     elements.qualityValue.value = elements.customQuality.value;
   };
   const itemNotice = (item) => item.noticeKey ? t(currentLang, item.noticeKey) : item.notice;
@@ -351,6 +401,20 @@ function initBrowserPage() {
         ? t(currentLang, 'processing')
         : itemNotice(item) || formatBytes(item.file.size, currentLang);
   const queue = new ImageBatchQueue({ processItem: processBrowserImage, onChange: render });
+  let canvasSizeInitialized = false;
+  let canvasSizeTouched = false;
+  const initializeCanvasSizeFromFirstImage = async () => {
+    if (canvasSizeInitialized || canvasSizeTouched || !queue.items.length) return;
+    let image;
+    try {
+      image = await decodeImage(queue.items[0].file);
+      if (canvasSizeTouched) return;
+      elements.canvasWidth.value = String(image.naturalWidth || image.width);
+      elements.canvasHeight.value = String(image.naturalHeight || image.height);
+      canvasSizeInitialized = true;
+    } catch (_) { /* The values can still be entered manually. */ }
+    finally { image?.close?.(); }
+  };
   function render() {
     elements.fileList.replaceChildren(...queue.items.map((item) => {
       const row = document.createElement('li'); row.className = 'file-item';
@@ -373,9 +437,14 @@ function initBrowserPage() {
   }
   document.addEventListener('image-tools:languagechange', (event) => {
     currentLang = event.detail?.lang || currentLang;
+    setConditionalControls();
     render();
   });
-  const addFiles = (files) => queue.add(files);
+  const addFiles = (files) => {
+    const result = queue.add(files);
+    void initializeCanvasSizeFromFirstImage();
+    return result;
+  };
   elements.chooseFiles.addEventListener('click', (event) => { event.stopPropagation(); elements.fileInput.click(); });
   elements.chooseFolder.addEventListener('click', (event) => { event.stopPropagation(); elements.folderInput.click(); });
   elements.dropzone.addEventListener('click', () => elements.fileInput.click());
@@ -387,21 +456,44 @@ function initBrowserPage() {
   elements.dropzone.addEventListener('drop', async (event) => {
     addFiles(await readDroppedFiles(event.dataTransfer));
   });
-  [elements.outputFormat, elements.qualityPreset, elements.resizeMode, elements.resizeValue].forEach((element) => element.addEventListener('change', () => { setConditionalControls(); queue.invalidateResults(); }));
-  elements.jpgBackground.addEventListener('input', () => {
-    elements.jpgBackgroundHex.value = elements.jpgBackground.value.slice(1).toUpperCase();
+  [elements.outputFormat, elements.qualityPreset, elements.resizeMode, elements.resizeValue].forEach((element) => element.addEventListener('change', () => {
+    setConditionalControls();
+    if (element === elements.resizeMode && elements.resizeMode.value === 'canvas') void initializeCanvasSizeFromFirstImage();
+    queue.invalidateResults();
+  }));
+  [elements.canvasWidth, elements.canvasHeight].forEach((input) => {
+    input.addEventListener('input', () => { canvasSizeTouched = true; queue.invalidateResults(); });
+    input.addEventListener('change', () => queue.invalidateResults());
+  });
+  elements.canvasRelative.addEventListener('change', () => {
+    canvasSizeTouched = elements.canvasRelative.checked;
+    if (canvasSizeTouched) {
+      elements.canvasWidth.value = '0'; elements.canvasHeight.value = '0';
+    } else {
+      canvasSizeInitialized = false;
+      elements.canvasWidth.value = ''; elements.canvasHeight.value = '';
+      void initializeCanvasSizeFromFirstImage();
+    }
+    setConditionalControls(); queue.invalidateResults();
+  });
+  elements.canvasExtensionColor.addEventListener('input', () => {
+    elements.canvasExtensionColorHex.value = elements.canvasExtensionColor.value.slice(1).toUpperCase();
     queue.invalidateResults();
   });
-  elements.jpgBackgroundHex.addEventListener('input', () => {
-    const sanitized = elements.jpgBackgroundHex.value.replace(/^#/, '').replace(/[^0-9a-f]/gi, '').slice(0, 6).toUpperCase();
-    elements.jpgBackgroundHex.value = sanitized;
-    const color = normalizeHexColor(sanitized);
-    if (color) { elements.jpgBackground.value = color; queue.invalidateResults(); }
+  elements.canvasExtensionColorHex.addEventListener('input', () => {
+    const sanitized = elements.canvasExtensionColorHex.value.replace(/^#/, '').replace(/[^0-9a-f]/gi, '').slice(0, 6).toUpperCase();
+    elements.canvasExtensionColorHex.value = sanitized;
+    if (/^[0-9A-F]{6}$/.test(sanitized)) { elements.canvasExtensionColor.value = `#${sanitized}`; queue.invalidateResults(); }
   });
-  elements.jpgBackgroundHex.addEventListener('change', () => {
-    const color = normalizeHexColor(elements.jpgBackgroundHex.value);
-    if (color) elements.jpgBackground.value = color;
-    elements.jpgBackgroundHex.value = elements.jpgBackground.value.slice(1).toUpperCase();
+  elements.canvasExtensionMode.addEventListener('change', () => {
+    if (elements.outputFormat.value !== 'jpg') preferredExtensionMode = elements.canvasExtensionMode.value;
+    setConditionalControls(); queue.invalidateResults();
+  });
+  elements.canvasAnchor.addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-anchor-x]');
+    if (!button) return;
+    elements.canvasAnchor.querySelectorAll('button').forEach((option) => option.setAttribute('aria-pressed', String(option === button)));
+    queue.invalidateResults();
   });
   elements.customQuality.addEventListener('input', () => { setConditionalControls(); queue.invalidateResults(); });
   elements.clearAll.addEventListener('click', () => queue.clear());
