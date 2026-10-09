@@ -4,13 +4,77 @@ import { buildOutputPlan, percentSaved, validateImageFile } from './image-core.m
 
 const QUALITY_PRESETS = { high: 0.9, balanced: 0.8, small: 0.7 };
 
+function setDroppedFilePath(file, relativePath) {
+  for (const property of ['relativePath', 'webkitRelativePath']) {
+    try { Object.defineProperty(file, property, { configurable: true, value: relativePath }); }
+    catch (_) { /* The file remains usable even if its browser path is read-only. */ }
+  }
+  return file;
+}
+
+async function readDroppedHandle(handle, parentPath = '') {
+  const relativePath = [parentPath, handle.name].filter(Boolean).join('/');
+  if (handle.kind === 'file') {
+    try { return [setDroppedFilePath(await handle.getFile(), relativePath)]; }
+    catch (_) { return []; }
+  }
+  if (handle.kind !== 'directory') return [];
+
+  const files = [];
+  try {
+    for await (const [, child] of handle.entries()) {
+      files.push(...await readDroppedHandle(child, relativePath));
+    }
+  } catch (_) { /* Ignore unreadable entries and continue with files already found. */ }
+  return files;
+}
+
+async function readDroppedEntry(entry, parentPath = '') {
+  const relativePath = [parentPath, entry.name].filter(Boolean).join('/');
+  if (entry.isFile) {
+    return new Promise((resolve) => entry.file(
+      (file) => resolve([setDroppedFilePath(file, relativePath)]),
+      () => resolve([])
+    ));
+  }
+  if (!entry.isDirectory) return [];
+
+  const reader = entry.createReader();
+  const files = [];
+  while (true) {
+    const batch = await new Promise((resolve) => reader.readEntries(resolve, () => resolve([])));
+    if (!batch.length) break;
+    const nested = await Promise.all(batch.map((child) => readDroppedEntry(child, relativePath)));
+    files.push(...nested.flat());
+  }
+  return files;
+}
+
+export async function readDroppedFiles(dataTransfer) {
+  const items = Array.from(dataTransfer?.items || []);
+  if (!items.length) return Array.from(dataTransfer?.files || []);
+
+  const groups = await Promise.all(items.map(async (item) => {
+    try {
+      const handle = await item.getAsFileSystemHandle?.();
+      if (handle) return readDroppedHandle(handle);
+    } catch (_) { /* Fall back to the legacy entry API below. */ }
+    const entry = item.getAsEntry?.() || item.webkitGetAsEntry?.();
+    if (entry) return readDroppedEntry(entry);
+    const file = item.getAsFile?.();
+    return file ? [file] : [];
+  }));
+  const files = groups.flat();
+  return files.length ? files : Array.from(dataTransfer.files || []);
+}
+
 export function normalizeHexColor(value) {
   const hex = String(value || '').trim().replace(/^#/, '').toUpperCase();
   return /^[0-9A-F]{6}$/.test(hex) ? `#${hex}` : null;
 }
 
 export function getFileRelativePath(file) {
-  const rawPath = String(file?.webkitRelativePath || file?.name || 'image').replace(/\\/g, '/');
+  const rawPath = String(file?.relativePath || file?.webkitRelativePath || file?.name || 'image').replace(/\\/g, '/');
   return rawPath.split('/').filter(Boolean).join('/') || 'image';
 }
 
@@ -320,7 +384,9 @@ function initBrowserPage() {
   elements.folderInput.addEventListener('change', () => { addFiles(elements.folderInput.files); elements.folderInput.value = ''; });
   ['dragenter', 'dragover'].forEach((type) => elements.dropzone.addEventListener(type, (event) => { event.preventDefault(); elements.dropzone.classList.add('is-dragging'); }));
   ['dragleave', 'drop'].forEach((type) => elements.dropzone.addEventListener(type, (event) => { event.preventDefault(); elements.dropzone.classList.remove('is-dragging'); }));
-  elements.dropzone.addEventListener('drop', (event) => addFiles(event.dataTransfer.files));
+  elements.dropzone.addEventListener('drop', async (event) => {
+    addFiles(await readDroppedFiles(event.dataTransfer));
+  });
   [elements.outputFormat, elements.qualityPreset, elements.resizeMode, elements.resizeValue].forEach((element) => element.addEventListener('change', () => { setConditionalControls(); queue.invalidateResults(); }));
   elements.jpgBackground.addEventListener('input', () => {
     elements.jpgBackgroundHex.value = elements.jpgBackground.value.slice(1).toUpperCase();
