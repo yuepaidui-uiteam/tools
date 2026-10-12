@@ -14,6 +14,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
     <!-- 本地 SVGA 播放器，避免 CDN 加载失败导致预览无法控制 -->
     <script src="assets/tools/vendor/svga-web.umd.js"></script>
+    <!-- 本地 PNG 优化器，与图片批量压缩共用 -->
+    <script src="assets/tools/vendor/upng.min.js"></script>
     <style id="tool-theme-overrides">
         :root {
             --page-bg: #080b16;
@@ -1729,11 +1731,14 @@
             const cctx = canvas.getContext('2d');
 
             try {
+                const { encodePngCanvas } = await import(new URL('assets/tools/png-encoder.mjs', document.baseURI));
+                const pngQuality = parseFloat(qualitySlider.value);
                 const imagesMap = {};
                 for (let idx = 0; idx < total; idx++) {
                     cctx.clearRect(0, 0, store.width, store.height);
                     cctx.drawImage(frameImages[idx], 0, 0, store.width, store.height);
-                    imagesMap[String(idx + 1)] = await canvasToBytes(canvas);
+                    const encoded = await encodePngCanvas(canvas, pngQuality);
+                    imagesMap[String(idx + 1)] = new Uint8Array(await encoded.blob.arrayBuffer());
                     setStatus('编码帧 ' + (idx + 1) + '/' + total, 'blue');
                 }
                 // 每帧 = 一个 sprite；sprite 的 frames 长度 = 总帧数，
@@ -1773,7 +1778,7 @@
         }
 
         // ---------- 导出 WebP 动画 (HTML) ----------
-        function exportWebP() {
+        async function exportWebP() {
             if (processingLock) {
                 setStatus('正在处理图片，请稍候再导出', 'orange');
                 return;
@@ -1795,19 +1800,42 @@
             canvas.height = h;
             const cctx = canvas.getContext('2d');
 
+            let optimizedPngFrames;
+            try {
+                setStatus('压缩 PNG 帧...', 'blue');
+                const { encodeFramesAsPng } = await import(new URL('assets/tools/png-encoder.mjs', document.baseURI));
+                optimizedPngFrames = await encodeFramesAsPng(frameImages, canvas, quality, (done, count) => {
+                    setStatus(`压缩 PNG 帧 ${done}/${count}`, 'blue');
+                });
+            } catch (err) {
+                setStatus('PNG 帧压缩失败: ' + err.message, 'orange');
+                return;
+            }
+
             const frameDataURLs = [];
             let processed = 0;
             const total = frameImages.length;
 
-            function processNext(index) {
+            async function processNext(index) {
                 if (index >= total) {
                     buildWebPHTML(frameDataURLs);
                     return;
                 }
-                const img = frameImages[index];
+                let pngBitmap;
+                try {
+                    pngBitmap = await createImageBitmap(optimizedPngFrames[index]);
+                } catch (err) {
+                    setStatus('读取优化后的 PNG 帧失败: ' + err.message, 'orange');
+                    return;
+                }
                 cctx.clearRect(0, 0, w, h);
-                cctx.drawImage(img, 0, 0, w, h);
+                cctx.drawImage(pngBitmap, 0, 0, w, h);
+                pngBitmap.close();
                 canvas.toBlob((blob) => {
+                    if (!blob) {
+                        setStatus('浏览器无法编码 WebP 帧', 'orange');
+                        return;
+                    }
                     const reader = new FileReader();
                     reader.onload = (e) => {
                         frameDataURLs.push(e.target.result);
@@ -1887,7 +1915,7 @@
                 return;
             }
             await gifWorkerReady;
-            setStatus('生成 GIF...', 'blue');
+            setStatus('压缩 PNG 帧...', 'blue');
             const fps = parseInt(fpsSlider.value);
             const quality = Math.min(20, Math.max(1, Math.round(parseFloat(qualitySlider.value) * 20)));
             const loop = parseInt(loopCount.value) === 0 ? 0 : parseInt(loopCount.value);
@@ -1914,6 +1942,18 @@
             const cctx = canvas.getContext('2d');
             cctx.imageSmoothingEnabled = true;
             cctx.imageSmoothingQuality = 'high';
+
+            let optimizedPngFrames;
+            try {
+                const { encodeFramesAsPng } = await import(new URL('assets/tools/png-encoder.mjs', document.baseURI));
+                optimizedPngFrames = await encodeFramesAsPng(frameImages, canvas, parseFloat(qualitySlider.value), (done, count) => {
+                    setStatus(`压缩 PNG 帧 ${done}/${count}`, 'blue');
+                });
+            } catch (err) {
+                setStatus('PNG 帧压缩失败: ' + err.message, 'orange');
+                return;
+            }
+            setStatus('生成 GIF...', 'blue');
 
             function prepareGifFrame(image) {
                 cctx.clearRect(0, 0, w, h);
@@ -1961,14 +2001,21 @@
             let added = 0;
             const total = frameImages.length;
 
-            function addNext(idx) {
+            async function addNext(idx) {
                 if (idx >= total) {
                     gif.render();
                     setStatus('GIF 渲染中...', 'blue');
                     return;
                 }
-                const img = frameImages[idx];
-                prepareGifFrame(img);
+                let pngBitmap;
+                try {
+                    pngBitmap = await createImageBitmap(optimizedPngFrames[idx]);
+                } catch (err) {
+                    setStatus('读取优化后的 PNG 帧失败: ' + err.message, 'orange');
+                    return;
+                }
+                prepareGifFrame(pngBitmap);
+                pngBitmap.close();
                 gif.addFrame(cctx, { copy: true, delay: 1000 / fps });
                 added++;
                 setStatus(`添加帧 ${added}/${total}`, 'blue');

@@ -1,6 +1,7 @@
 import { initToolShell, downloadBlob } from './common.mjs';
 import { LANGS, formatBytes, t } from './i18n.mjs';
 import { buildOutputPlan, getCanvasExtensionModes, getResizeUnit, percentSaved, selectNonExpandingBlob, validateImageFile } from './image-core.mjs';
+import { encodePngCanvas } from './png-encoder.mjs';
 
 const QUALITY_PRESETS = { high: 0.9, balanced: 0.8, small: 0.7 };
 
@@ -244,23 +245,8 @@ async function encodeOutput(canvas, plan) {
       : plan.quality;
     return { blob: await canvasToBlob(canvas, plan.mimeType, quality) };
   }
-  if (globalThis.UPNG?.encode) {
-    const rgba = canvas.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, canvas.width, canvas.height).data;
-    let transparent = false;
-    for (let index = 3; index < rgba.length; index += 4) {
-      if (rgba[index] < 255) { transparent = true; break; }
-    }
-    // Keep transparent artwork lossless: palette quantization creates halos
-    // and banding in soft alpha fades and glows.
-    const colors = transparent ? 0 : plan.quality >= 0.85 ? 192 : plan.quality >= 0.75 ? 128 : 96;
-    const encoded = new Uint8Array(globalThis.UPNG.encode([rgba.buffer], canvas.width, canvas.height, colors));
-    const source = new Uint8Array(await new Promise((resolve, reject) => canvas.toBlob(async blob => {
-      if (!blob) { reject(new Error('当前浏览器不支持 PNG 导出')); return; }
-      resolve(await blob.arrayBuffer());
-    }, 'image/png')));
-    return { blob: new Blob([encoded.length < source.length ? encoded : source], { type: 'image/png' }) };
-  }
-  return { blob: await canvasToBlob(canvas, 'image/png'), notice: '已使用兼容模式导出 PNG' };
+  const encoded = await encodePngCanvas(canvas, plan.quality);
+  return { blob: encoded.blob, ...(encoded.usedOptimizer ? {} : { notice: '已使用兼容模式导出 PNG' }) };
 }
 
 async function processBrowserImage(item, settings, usedNames) {
