@@ -35,3 +35,11 @@ export async function encodeFramesAsPng(frames, canvas, quality = 0.8, onProgres
   }
   return pngFrames;
 }
+
+export async function drawPngFrameToCanvas(pngBlob, canvas, decode = globalThis.createImageBitmap) {
+  const bitmap = await decode(pngBlob);
+  const context = canvas.getContext('2d');
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close?.();
+}

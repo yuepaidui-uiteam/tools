@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+  <link rel="icon" type="image/svg+xml" href="assets/tools/design-tools-icon.svg">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PNG序列 → SVGA / WebP / GIF (可调内部缩放)</title>
@@ -960,8 +961,8 @@
                         <input type="range" id="svgaScaleSlider" min="10" max="100" value="100" step="1" />
                     </div>
                     <div class="group">
-                        <label>图片质量 <span class="value" id="qualityValue">85%</span></label>
-                        <input type="range" id="qualitySlider" min="0.1" max="1" value="0.85" step="0.05" />
+                        <label>图片质量 <span class="value" id="qualityValue">80%</span></label>
+                        <input type="range" id="qualitySlider" min="0.1" max="1" value="0.8" step="0.05" />
                     </div>
                     <div class="group hidden" aria-hidden="true">
                         <label>循环次数</label>
@@ -1791,20 +1792,25 @@
             const fps = parseInt(fpsSlider.value);
             const loop = parseInt(loopCount.value) === 0 ? 'infinite' : parseInt(loopCount.value);
             const quality = parseFloat(qualitySlider.value);
+            const output = getTargetSize();
             const store = getStoreSize();
-            const w = store.width,
-                h = store.height;
+            const w = output.width,
+                h = output.height;
 
             const canvas = document.createElement('canvas');
             canvas.width = w;
             canvas.height = h;
-            const cctx = canvas.getContext('2d');
+            const frameCanvas = document.createElement('canvas');
+            frameCanvas.width = store.width;
+            frameCanvas.height = store.height;
 
             let optimizedPngFrames;
+            let drawPngFrameToCanvas;
             try {
                 setStatus('压缩 PNG 帧...', 'blue');
-                const { encodeFramesAsPng } = await import(new URL('assets/tools/png-encoder.mjs', document.baseURI));
-                optimizedPngFrames = await encodeFramesAsPng(frameImages, canvas, quality, (done, count) => {
+                const encoder = await import(new URL('assets/tools/png-encoder.mjs', document.baseURI));
+                drawPngFrameToCanvas = encoder.drawPngFrameToCanvas;
+                optimizedPngFrames = await encoder.encodeFramesAsPng(frameImages, frameCanvas, quality, (done, count) => {
                     setStatus(`压缩 PNG 帧 ${done}/${count}`, 'blue');
                 });
             } catch (err) {
@@ -1821,16 +1827,12 @@
                     buildWebPHTML(frameDataURLs);
                     return;
                 }
-                let pngBitmap;
                 try {
-                    pngBitmap = await createImageBitmap(optimizedPngFrames[index]);
+                    await drawPngFrameToCanvas(optimizedPngFrames[index], canvas);
                 } catch (err) {
                     setStatus('读取优化后的 PNG 帧失败: ' + err.message, 'orange');
                     return;
                 }
-                cctx.clearRect(0, 0, w, h);
-                cctx.drawImage(pngBitmap, 0, 0, w, h);
-                pngBitmap.close();
                 canvas.toBlob((blob) => {
                     if (!blob) {
                         setStatus('浏览器无法编码 WebP 帧', 'orange');
@@ -1920,9 +1922,10 @@
             const quality = Math.min(20, Math.max(1, Math.round(parseFloat(qualitySlider.value) * 20)));
             const loop = parseInt(loopCount.value) === 0 ? 0 : parseInt(loopCount.value);
             const useAlphaDither = true;
+            const output = getTargetSize();
             const store = getStoreSize();
-            const w = store.width,
-                h = store.height;
+            const w = output.width,
+                h = output.height;
 
             const gif = new GIF({
                 workers: 2,
@@ -1942,11 +1945,16 @@
             const cctx = canvas.getContext('2d');
             cctx.imageSmoothingEnabled = true;
             cctx.imageSmoothingQuality = 'high';
+            const frameCanvas = document.createElement('canvas');
+            frameCanvas.width = store.width;
+            frameCanvas.height = store.height;
 
             let optimizedPngFrames;
+            let drawPngFrameToCanvas;
             try {
-                const { encodeFramesAsPng } = await import(new URL('assets/tools/png-encoder.mjs', document.baseURI));
-                optimizedPngFrames = await encodeFramesAsPng(frameImages, canvas, parseFloat(qualitySlider.value), (done, count) => {
+                const encoder = await import(new URL('assets/tools/png-encoder.mjs', document.baseURI));
+                drawPngFrameToCanvas = encoder.drawPngFrameToCanvas;
+                optimizedPngFrames = await encoder.encodeFramesAsPng(frameImages, frameCanvas, parseFloat(qualitySlider.value), (done, count) => {
                     setStatus(`压缩 PNG 帧 ${done}/${count}`, 'blue');
                 });
             } catch (err) {
@@ -1955,9 +1963,7 @@
             }
             setStatus('生成 GIF...', 'blue');
 
-            function prepareGifFrame(image) {
-                cctx.clearRect(0, 0, w, h);
-                cctx.drawImage(image, 0, 0, w, h);
+            function prepareGifFrame() {
                 const pixels = cctx.getImageData(0, 0, w, h);
                 const data = pixels.data;
                 const alphaErrors = useAlphaDither ? new Float32Array(w * h) : null;
@@ -2007,15 +2013,13 @@
                     setStatus('GIF 渲染中...', 'blue');
                     return;
                 }
-                let pngBitmap;
                 try {
-                    pngBitmap = await createImageBitmap(optimizedPngFrames[idx]);
+                    await drawPngFrameToCanvas(optimizedPngFrames[idx], canvas);
                 } catch (err) {
                     setStatus('读取优化后的 PNG 帧失败: ' + err.message, 'orange');
                     return;
                 }
-                prepareGifFrame(pngBitmap);
-                pngBitmap.close();
+                prepareGifFrame();
                 gif.addFrame(cctx, { copy: true, delay: 1000 / fps });
                 added++;
                 setStatus(`添加帧 ${added}/${total}`, 'blue');

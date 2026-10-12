@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { encodeFramesAsPng, encodePngCanvas } from './assets/tools/png-encoder.mjs';
+import { drawPngFrameToCanvas, encodeFramesAsPng, encodePngCanvas } from './assets/tools/png-encoder.mjs';
 
 function createCanvas(pixelBytes, nativePngBytes = [1, 2, 3, 4]) {
   return {
@@ -74,4 +74,31 @@ test('pre-encodes every animation frame as PNG before handing frames to another 
   assert.deepEqual(drawnFrames, [11, 22]);
   assert.deepEqual(encodedPixels, [{ pixel: 11, colors: 128 }, { pixel: 22, colors: 128 }]);
   assert.deepEqual(await Promise.all(outputs.map(async blob => [...new Uint8Array(await blob.arrayBuffer())])), [[11], [22]]);
+});
+
+test('draws an internally scaled PNG frame onto the unchanged output canvas dimensions', async () => {
+  const draws = [];
+  let closed = false;
+  const bitmap = { width: 40, height: 30, close() { closed = true; } };
+  const pngBlob = new Blob([new Uint8Array([1])], { type: 'image/png' });
+  const canvas = {
+    width: 400,
+    height: 300,
+    getContext() {
+      return {
+        clearRect(...args) { draws.push(['clear', ...args]); },
+        drawImage(...args) { draws.push(['draw', ...args]); }
+      };
+    }
+  };
+
+  await drawPngFrameToCanvas(pngBlob, canvas, async blob => {
+    assert.equal(blob, pngBlob);
+    return bitmap;
+  });
+
+  assert.deepEqual(draws, [['clear', 0, 0, 400, 300], ['draw', bitmap, 0, 0, 400, 300]]);
+  assert.equal(closed, true);
+  assert.equal(canvas.width, 400);
+  assert.equal(canvas.height, 300);
 });

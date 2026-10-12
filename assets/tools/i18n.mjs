@@ -15,7 +15,7 @@ export const LANGUAGE_NAMES = {
 };
 
 const EN = {
-  meta_title: 'Free Image Tools',
+  meta_title: 'Design Tools Suite',
   meta_description: 'Free, local-first image tools that run entirely in your browser.',
   nav_tools: 'Free tools',
   nav_home: 'Home',
@@ -268,7 +268,7 @@ export const DICTS = {
     preview: '미리보기', width: '너비', height: '높이', nine_initial_status: '먼저 이미지를 불러온 뒤 .9.png를 만드세요.', export_density: '내보내기 밀도', download_nine: '.9.png 다운로드'
   }),
   'zh-CN': dictionary({
-    meta_title: '免费图片工具', meta_description: '免费的本地优先图片工具，完全在浏览器中运行。',
+    meta_title: '设计工具合集', meta_description: '免费的本地优先图片工具，完全在浏览器中运行。',
     nav_tools: '免费工具', nav_home: '首页', nav_plugins: '插件', nav_pricing: '价格',
     footer_tools: '免费工具', footer_privacy: '隐私', footer_terms: '条款', language: '语言',
     tools_eyebrow: '免费图片工具', tools_title: '小小图片任务，本地就能完成。', tools_lead: '为日常图片处理打造的快速浏览器工具。文件始终留在这台设备上。',
