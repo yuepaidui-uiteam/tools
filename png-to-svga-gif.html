@@ -11,12 +11,16 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
     <!-- 本地 GIF 解码器，确保真实预览不依赖 CDN -->
     <script src="assets/tools/vendor/gifuct-web.umd.js"></script>
+    <script src="assets/tools/gif-processing.js"></script>
     <!-- pako for SVGA (gzip) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
     <!-- 本地 SVGA 播放器，避免 CDN 加载失败导致预览无法控制 -->
     <script src="assets/tools/vendor/svga-web.umd.js"></script>
     <!-- 本地 PNG 优化器，与图片批量压缩共用 -->
     <script src="assets/tools/vendor/upng.min.js"></script>
+    <!-- 本地经典脚本兼容 file:// 页面，避免浏览器拦截动态导入模块 -->
+    <script src="assets/tools/png-encoder.js"></script>
+    <script src="assets/tools/webp-animation.js"></script>
     <style id="tool-theme-overrides">
         :root {
             --page-bg: #080b16;
@@ -1732,7 +1736,8 @@
             const cctx = canvas.getContext('2d');
 
             try {
-                const { encodePngCanvas } = await import(new URL('assets/tools/png-encoder.mjs', document.baseURI));
+                const { encodePngCanvas } = window.PngEncoder || {};
+                if (!encodePngCanvas) throw new Error('本地 PNG 编码器未加载');
                 const pngQuality = parseFloat(qualitySlider.value);
                 const imagesMap = {};
                 for (let idx = 0; idx < total; idx++) {
@@ -1778,7 +1783,7 @@
             }
         }
 
-        // ---------- 导出 WebP 动画 (HTML) ----------
+        // ---------- 导出原生动画 WebP ----------
         async function exportWebP() {
             if (processingLock) {
                 setStatus('正在处理图片，请稍候再导出', 'orange');
@@ -1788,9 +1793,9 @@
                 alert('请先上传PNG序列');
                 return;
             }
-            setStatus('生成 WebP HTML...', 'blue');
+            setStatus('生成动画 WebP...', 'blue');
             const fps = parseInt(fpsSlider.value);
-            const loop = parseInt(loopCount.value) === 0 ? 'infinite' : parseInt(loopCount.value);
+            const loops = Math.max(0, parseInt(loopCount.value) || 0);
             const quality = parseFloat(qualitySlider.value);
             const output = getTargetSize();
             const store = getStoreSize();
@@ -1806,9 +1811,12 @@
 
             let optimizedPngFrames;
             let drawPngFrameToCanvas;
+            let webpEncoder;
             try {
                 setStatus('压缩 PNG 帧...', 'blue');
-                const encoder = await import(new URL('assets/tools/png-encoder.mjs', document.baseURI));
+                const encoder = window.PngEncoder;
+                webpEncoder = window.WebPAnimation;
+                if (!encoder || !webpEncoder) throw new Error('本地 WebP 编码器未加载');
                 drawPngFrameToCanvas = encoder.drawPngFrameToCanvas;
                 optimizedPngFrames = await encoder.encodeFramesAsPng(frameImages, frameCanvas, quality, (done, count) => {
                     setStatus(`压缩 PNG 帧 ${done}/${count}`, 'blue');
@@ -1819,87 +1827,38 @@
             }
 
             const frameDataURLs = [];
-            let processed = 0;
+            const webpFrames = [];
             const total = frameImages.length;
-
-            async function processNext(index) {
-                if (index >= total) {
-                    buildWebPHTML(frameDataURLs);
-                    return;
-                }
-                try {
+            try {
+                for (let index = 0; index < total; index++) {
+                    setStatus(`编码动画 WebP ${index + 1}/${total}`, 'blue');
                     await drawPngFrameToCanvas(optimizedPngFrames[index], canvas);
-                } catch (err) {
-                    setStatus('读取优化后的 PNG 帧失败: ' + err.message, 'orange');
-                    return;
+                    const blob = await new Promise((resolve, reject) => {
+                        canvas.toBlob((encoded) => encoded ? resolve(encoded) : reject(new Error('浏览器无法编码 WebP 帧')), 'image/webp', quality);
+                    });
+                    webpFrames.push(blob);
+                    frameDataURLs.push(await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result);
+                        reader.onerror = () => reject(new Error('无法读取 WebP 帧'));
+                        reader.readAsDataURL(blob);
+                    }));
                 }
-                canvas.toBlob((blob) => {
-                    if (!blob) {
-                        setStatus('浏览器无法编码 WebP 帧', 'orange');
-                        return;
-                    }
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        frameDataURLs.push(e.target.result);
-                        processed++;
-                        setStatus(`编码 WebP ${processed}/${total}`, 'blue');
-                        processNext(index + 1);
-                    };
-                    reader.readAsDataURL(blob);
-                }, 'image/webp', quality);
-            }
-
-            function buildWebPHTML(urls) {
-                const html = `<!DOCTYPE html>
-        <html><head><meta charset="UTF-8"><title>WebP 动画</title>
-        <style>body{margin:0;display:flex;justify-content:center;align-items:center;height:100vh;background:#222;}
-        canvas{max-width:90vw;max-height:90vh;}</style>
-        </head><body>
-        <canvas id="animCanvas"></canvas>
-        <script>
-        const frames = [${urls.map(u=>`'${u}'`).join(',')}];
-        const fps = ${fps};
-        const loop = ${typeof loop === 'number' ? loop : 'Infinity'};
-        const canvas = document.getElementById('animCanvas');
-            const ctx = canvas.getContext('2d');
-        let images=[], loaded=0;
-        function loadNext(i){
-            if(i>=frames.length){ start(); return; }
-            const img=new Image();
-            img.onload=()=>{ images[i]=img; loaded++; loadNext(i+1); };
-            img.onerror=()=>loadNext(i+1);
-            img.src=frames[i];
-        }
-        function start(){
-            canvas.width=images[0].width;
-            canvas.height=images[0].height;
-            let frame=0, count=0;
-            function draw(){
-                ctx.clearRect(0,0,canvas.width,canvas.height);
-                ctx.drawImage(images[frame],0,0);
-                frame=(frame+1)%images.length;
-                if(frame===0 && loop!==Infinity){ count++; if(count>=loop) return; }
-                setTimeout(draw, 1000/fps);
-            }
-            draw();
-        }
-        loadNext(0);
-        <\/script>
-        </body></html>`;
+                const blob = await webpEncoder.assembleAnimatedWebP(webpFrames, { width: w, height: h, fps, loopCount: loops });
                 showExportPreview('webp', {
-                    frameDataURLs: urls,
-                    html: html,
-                    filename: 'webp_animation_' + Date.now() + '.html',
+                    blob,
+                    frameDataURLs,
+                    filename: 'animation_' + Date.now() + '.webp',
                     width: w,
                     height: h,
-                    fps: fps,
+                    fps,
                     memoryWidth: w,
                     memoryHeight: h,
                     frameCount: total
                 });
+            } catch (err) {
+                setStatus('动画 WebP 编码失败: ' + err.message, 'orange');
             }
-
-            processNext(0);
         }
 
         // ---------- 导出 GIF ----------
@@ -1918,8 +1877,13 @@
             }
             await gifWorkerReady;
             setStatus('压缩 PNG 帧...', 'blue');
+            const gifProcessing = window.GifProcessing;
+            if (!gifProcessing) {
+                setStatus('GIF 颜色处理模块未加载，请刷新页面后重试', 'orange');
+                return;
+            }
             const fps = parseInt(fpsSlider.value);
-            const quality = Math.min(20, Math.max(1, Math.round(parseFloat(qualitySlider.value) * 20)));
+            const quality = gifProcessing.gifQualityFromSlider(parseFloat(qualitySlider.value));
             const loop = parseInt(loopCount.value) === 0 ? 0 : parseInt(loopCount.value);
             const useAlphaDither = true;
             const output = getTargetSize();
@@ -1952,7 +1916,8 @@
             let optimizedPngFrames;
             let drawPngFrameToCanvas;
             try {
-                const encoder = await import(new URL('assets/tools/png-encoder.mjs', document.baseURI));
+                const encoder = window.PngEncoder;
+                if (!encoder) throw new Error('本地 PNG 编码器未加载');
                 drawPngFrameToCanvas = encoder.drawPngFrameToCanvas;
                 optimizedPngFrames = await encoder.encodeFramesAsPng(frameImages, frameCanvas, parseFloat(qualitySlider.value), (done, count) => {
                     setStatus(`压缩 PNG 帧 ${done}/${count}`, 'blue');
@@ -1965,42 +1930,7 @@
 
             function prepareGifFrame() {
                 const pixels = cctx.getImageData(0, 0, w, h);
-                const data = pixels.data;
-                const alphaErrors = useAlphaDither ? new Float32Array(w * h) : null;
-                for (let y = 0; y < h; y++) {
-                    for (let x = 0; x < w; x++) {
-                        const pixelIndex = y * w + x;
-                        const i = pixelIndex * 4;
-                    const alpha = data[i + 3];
-                    const adjustedAlpha = useAlphaDither
-                        ? Math.max(0, Math.min(255, alpha + alphaErrors[pixelIndex]))
-                        : alpha;
-                    const opaque = adjustedAlpha >= 128;
-                    if (useAlphaDither) {
-                        const error = adjustedAlpha - (opaque ? 255 : 0);
-                        if (x + 1 < w) alphaErrors[pixelIndex + 1] += error * 7 / 16;
-                        if (y + 1 < h) {
-                            if (x > 0) alphaErrors[pixelIndex + w - 1] += error * 3 / 16;
-                            alphaErrors[pixelIndex + w] += error * 5 / 16;
-                            if (x + 1 < w) alphaErrors[pixelIndex + w + 1] += error * 1 / 16;
-                        }
-                    }
-                    if (!opaque) {
-                        // GIF 只有二值透明度，透明像素统一使用透明键色。
-                        data[i] = 0;
-                        data[i + 1] = 255;
-                        data[i + 2] = 1;
-                        data[i + 3] = 255;
-                    } else if (alpha < 255) {
-                        // 还原半透明边缘的原始 RGB，避免透明键色渗入形成绿边。
-                        const scale = 255 / Math.max(alpha, 1);
-                        data[i] = Math.min(255, Math.round(data[i] * scale));
-                        data[i + 1] = Math.min(255, Math.round(data[i + 1] * scale));
-                        data[i + 2] = Math.min(255, Math.round(data[i + 2] * scale));
-                        data[i + 3] = 255;
-                    }
-                    }
-                }
+                gifProcessing.prepareGifRgba(pixels.data, w, h, useAlphaDither);
                 cctx.putImageData(pixels, 0, 0);
             }
 
@@ -2185,11 +2115,9 @@
                 exportPlaying: false,
                 playerHasStarted: false
             };
-            exportFilename.value = data.filename.replace(/\.(svga|gif|html)$/i, '');
+            exportFilename.value = data.filename.replace(/\.(svga|gif|webp|html)$/i, '');
             btnDownloadExport.disabled = false;
-            const fileBytes = type === 'webp'
-                ? new Blob([data.html || '']).size
-                : (data.blob ? data.blob.size : 0);
+            const fileBytes = data.blob ? data.blob.size : 0;
             const memoryWidth = data.memoryWidth || data.width || getStoreSize().width;
             const memoryHeight = data.memoryHeight || data.height || getStoreSize().height;
             const frameTotal = data.frameCount || frameImages.length;
@@ -2357,10 +2285,11 @@
                 canvas.height = data.height;
                 exportPreviewMedia.appendChild(canvas);
                 applyAssetBackground(canvas);
-                currentExport.html = data.html;
+                currentExport.blob = data.blob;
                 currentExport.filename = data.filename;
-            previewStatus.textContent = 'WebP 播放页预览';
-                setStatus('WebP 播放页已生成，满意后点“下载”', 'green');
+                currentExport.url = URL.createObjectURL(data.blob);
+                previewStatus.textContent = '动画 WebP 预览';
+                setStatus('动画 WebP 已生成，满意后点“下载”', 'green');
                 progressInfo.textContent = '完成';
                 const images = data.frameDataURLs.map(src => { const im = new Image(); im.src = src; return im; });
                 const ctxp = canvas.getContext('2d');
@@ -2407,18 +2336,14 @@
                 setStatus('请先输入文件名再下载', 'orange');
                 return;
             }
-            baseName = baseName.replace(/\.(svga|gif|html)$/i, '');
-            const extension = currentExport.type === 'svga' ? '.svga' : currentExport.type === 'gif' ? '.gif' : '.html';
+            baseName = baseName.replace(/\.(svga|gif|webp|html)$/i, '');
+            const extension = currentExport.type === 'svga' ? '.svga' : currentExport.type === 'gif' ? '.gif' : '.webp';
             currentExport.filename = baseName + extension;
-            if (currentExport.type === 'webp') {
-                downloadFile(currentExport.html, currentExport.filename, 'text/html');
-            } else {
-                const url = URL.createObjectURL(currentExport.blob);
-                const a = document.createElement('a');
-                a.href = url; a.download = currentExport.filename;
-                document.body.appendChild(a); a.click(); document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            }
+            const url = URL.createObjectURL(currentExport.blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = currentExport.filename;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
             setStatus('已下载 ' + currentExport.filename, 'green');
         }
 

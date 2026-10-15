@@ -1,5 +1,6 @@
 $ErrorActionPreference = 'Stop'
 $page = Get-Content -Raw (Join-Path $PSScriptRoot '..\png-to-svga-gif.html')
+$gifProcessing = Get-Content -Raw (Join-Path $PSScriptRoot '..\assets\tools\gif-processing.js')
 
 if (-not $page.Contains('frameImages[idx] = img')) { throw 'frames must retain sorted indexes' }
 if (-not $page.Contains('finishFileLoad')) { throw 'file loading completion helper missing' }
@@ -14,14 +15,16 @@ if (-not $page.Contains('renderCache')) { throw 'preview frame cache missing' }
 if (-not $page.Contains('dimensionMismatchCount')) { throw 'dimension mismatch check missing' }
 if (-not $page.Contains("transparent: 0x00FF01")) { throw 'GIF export must enable transparency' }
 if (-not $page.Contains("background: '#00ff01'")) { throw 'GIF export transparent key color missing' }
-if (-not $page.Contains('WEBP_PLAYBACK_PAGE')) { throw 'webp output label should be honest' }
+if (-not $page.Contains('assembleAnimatedWebP')) { throw 'WebP export must assemble native animated WebP frames' }
+if (-not $page.Contains("filename: 'animation_' + Date.now() + '.webp'")) { throw 'WebP export filename must use .webp' }
+if ($page.Contains('buildWebPHTML') -or $page.Contains('currentExport.html')) { throw 'WebP export must not download an HTML playback page' }
 if (-not $page.Contains('cleanupCurrentExport();')) { throw 'clear action must clean export preview' }
 $playBody = [regex]::Match($page, 'function playAnimation\(\)\s*\{(?<body>[\s\S]*?)\n\s*\}\s*\n\s*function loop').Groups['body'].Value
 if ($playBody.Contains('currentIndex = 0')) { throw 'play should resume from current frame' }
 if (-not $page.Contains('pako.deflate(movieBytes)')) { throw 'SVGA must use zlib deflate stream' }
 if ($page.Contains('pako.gzip(movieBytes)') -or $page.Contains('pako.deflateRaw(movieBytes)')) { throw 'SVGA must not use gzip or raw deflate stream' }
 if (-not $page.Contains('function canvasToBytes')) { throw 'SVGA canvas encoding helper missing' }
-if (-not $page.Contains('await canvasToBytes(canvas')) { throw 'SVGA frames must encode sequentially' }
+if (-not $page.Contains('new Uint8Array(await encoded.blob.arrayBuffer())')) { throw 'SVGA frames must read encoded PNG bytes sequentially' }
 if ($page.Contains('const tasks = frameImages.map')) { throw 'SVGA must not encode frames concurrently on one canvas' }
 if (-not $page.Contains('Array.from(data)')) { throw 'protobuf byte fields must flatten typed arrays' }
 if (-not $page.Contains('function _encLayout')) { throw 'SVGA frames must declare layout dimensions' }
@@ -32,7 +35,7 @@ if (-not $page.Contains('exportEstimate')) { throw 'export size and memory estim
 if (-not $page.Contains('formatBytes')) { throw 'export estimate formatter missing' }
 if (-not $page.Contains('previewBackground')) { throw 'preview background selector missing' }
 if (-not $page.Contains('setPreviewBackground')) { throw 'preview background switching logic missing' }
-if (-not $page.Contains('alphaErrors')) { throw 'GIF alpha diffusion dithering missing' }
+if (-not $gifProcessing.Contains('alphaErrors')) { throw 'GIF alpha diffusion dithering missing' }
 if (-not $page.Contains('const useAlphaDither = true')) { throw 'GIF alpha diffusion dithering must be enabled by default' }
 if (-not $page.Contains('assets/tools/vendor/svga-web.umd.js')) { throw 'local SVGA player missing' }
 if (-not $page.Contains('function loadSvgaPreview')) { throw 'SVGA player API compatibility loader missing' }
