@@ -16,7 +16,10 @@ if (-not $page.Contains('dimensionMismatchCount')) { throw 'dimension mismatch c
 if (-not $page.Contains("transparent: 0x00FF01")) { throw 'GIF export must enable transparency' }
 if (-not $page.Contains("background: '#00ff01'")) { throw 'GIF export transparent key color missing' }
 if (-not $page.Contains('assembleAnimatedWebP')) { throw 'WebP export must assemble native animated WebP frames' }
-if (-not $page.Contains("filename: 'animation_' + Date.now() + '.webp'")) { throw 'WebP export filename must use .webp' }
+if (-not $page.Contains('function getSequenceBaseName')) { throw 'automatic export name must be derived from the PNG sequence name' }
+if (-not $page.Contains("filename: sequenceBaseName + '.webp'")) { throw 'WebP export must use the PNG sequence name' }
+if (-not $page.Contains("filename: sequenceBaseName + '.svga'")) { throw 'SVGA export must use the PNG sequence name' }
+if (-not $page.Contains("filename: sequenceBaseName + '.gif'")) { throw 'GIF export must use the PNG sequence name' }
 if ($page.Contains('buildWebPHTML') -or $page.Contains('currentExport.html')) { throw 'WebP export must not download an HTML playback page' }
 if (-not $page.Contains('cleanupCurrentExport();')) { throw 'clear action must clean export preview' }
 $playBody = [regex]::Match($page, 'function playAnimation\(\)\s*\{(?<body>[\s\S]*?)\n\s*\}\s*\n\s*function loop').Groups['body'].Value

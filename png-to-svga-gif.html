@@ -1037,7 +1037,7 @@
                 </div>
 
                 <div class="export-preview-bar">
-                    <input class="export-filename" id="exportFilename" type="text" placeholder="输入文件名后下载" aria-label="导出文件名" />
+                    <input class="export-filename" id="exportFilename" type="text" placeholder="自动使用切片名，可修改" aria-label="导出文件名" />
                     <button class="btn-download" id="btnDownloadExport" disabled>下载</button>
                     <div class="export-estimate" id="exportEstimate" aria-live="polite">预估大小 — · 内存消耗 —</div>
                 </div>
@@ -1098,6 +1098,7 @@
 
         // ---------- 状态 ----------
         let frameImages = [];          // Image 对象
+        let sequenceBaseName = 'animation';
         let isPlaying = false;
         let animFrameId = null;
         let currentIndex = 0;
@@ -1229,6 +1230,8 @@
                 return;
             }
             pngFiles.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+            sequenceBaseName = getSequenceBaseName(pngFiles);
+            exportFilename.placeholder = `自动名称：${sequenceBaseName}（可修改）`;
 
             const generation = ++loadGeneration;
             processingLock = true;
@@ -1309,6 +1312,14 @@
 
             fileList.innerHTML = pngFiles.map(f => `<span>⏳ ${f.name}</span>`).join('');
             setStatus(`加载中... 0/${total}`, 'blue');
+        }
+
+        function getSequenceBaseName(files) {
+            const firstName = files && files.length ? files[0].name : '';
+            const stem = firstName.replace(/\.[^.]+$/, '');
+            const sliceName = stem.replace(/(?:[_\-. ]?\d+)$/, '').replace(/[_\-. ]+$/, '');
+            const safeName = sliceName.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').trim();
+            return safeName || 'animation';
         }
 
         // ---------- 画布尺寸 ----------
@@ -1771,7 +1782,7 @@
                 const blob = new Blob([compressedMovie], { type: 'application/octet-stream' });
                 showExportPreview('svga', {
                     blob: blob,
-                    filename: 'animation_' + Date.now() + '.svga',
+                    filename: sequenceBaseName + '.svga',
                     width: out.width,
                     height: out.height,
                     memoryWidth: store.width,
@@ -1848,7 +1859,7 @@
                 showExportPreview('webp', {
                     blob,
                     frameDataURLs,
-                    filename: 'animation_' + Date.now() + '.webp',
+                    filename: sequenceBaseName + '.webp',
                     width: w,
                     height: h,
                     fps,
@@ -1968,7 +1979,7 @@
             gif.on('finished', (blob) => {
                 showExportPreview('gif', {
                     blob: blob,
-                    filename: 'animation_' + Date.now() + '.gif',
+                    filename: sequenceBaseName + '.gif',
                     memoryWidth: w,
                     memoryHeight: h,
                     frameCount: total
